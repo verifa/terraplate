@@ -13,3 +13,17 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+
+# Ignore build directory
+build/
+
+# Ignore the generated files (.tf and .tfvars)
+examples/**/tfplan
+examples/**/*.*
+!examples/**/terraplate.hcl
+!examples/**/*.tp.hcl
+!examples/**/*.md
+!examples/**/templates/*
+
+# TODO: release workflow
+.github/workflows/release.yaml

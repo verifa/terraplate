@@ -1,0 +1,47 @@
+# CI Workflow
+
+on:
+  # run this workflow on any branch or a PR
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - "**"
+
+name: ci
+jobs:
+  build-test:
+    strategy:
+      # matrix lets us expand our range of OSs / go
+      matrix:
+        go-version: [1.17]
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Install Go
+        # Skip install if testing action locally using act
+        if: ${{ !env.ACT }}
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: cache go mod
+        # Skip caching if testing action locally using act
+        if: ${{ !env.ACT }}
+        uses: actions/cache@v2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - name: Test
+        run: go test -failfast ./...
+        # Build with GoReleaser (but don't release!).
+        # This verifies that the GoReleaser config is valid and can build
+      # - name: Run GoReleaser
+      #   uses: goreleaser/goreleaser-action@v2
+      #   with:
+      #     version: latest
+      #     args: build --snapshot
