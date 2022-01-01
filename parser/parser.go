@@ -11,10 +11,12 @@ type TerraConfig struct {
 	Terrafiles []*Terrafile
 }
 
-func (c *TerraConfig) BuildFiles() []*Terrafile {
+// RootModules returns the Terrafiles that are considered root modules
+// and should therefore be processed
+func (c *TerraConfig) RootModules() []*Terrafile {
 	var files = make([]*Terrafile, 0)
 	for _, tf := range c.Terrafiles {
-		if tf.IsLeaf {
+		if tf.IsRoot {
 			files = append(files, tf)
 		}
 	}
@@ -77,7 +79,7 @@ func walkDownDirectory(dir string, ancestor *Terrafile) ([]*Terrafile, error) {
 				return nil, fmt.Errorf("parsing terraplate file %s: %w", path, parseErr)
 			}
 			if ancestor != nil {
-				ancestor.IsLeaf = false
+				ancestor.IsRoot = false
 				terrafile.Ancestor = ancestor
 			}
 			terrafiles = append(terrafiles, terrafile)
@@ -142,8 +144,8 @@ func walkUpDirectory(path string) (*Terrafile, error) {
 		return nil, travErr
 	}
 	if ancestor != nil {
-		// Ancestor is not a leaf because it's in a parent directory
-		ancestor.IsLeaf = false
+		// Ancestor is not a root module because it's in a parent directory
+		ancestor.IsRoot = false
 		// In case no terrafile was in this directory, terrafile is nil and should
 		// be "replaced" with the ancestor
 		if terrafile == nil {

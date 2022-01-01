@@ -16,8 +16,8 @@ import (
 type Terrafile struct {
 	Path string `hcl:"-"`
 	Dir  string `hcl:"-"`
-	// IsLeaf tells whether this is a leaf terraplate file
-	IsLeaf bool `hcl:"-"`
+	// IsRoot tells whether this terrafile is for a root module
+	IsRoot bool `hcl:"-"`
 	// Templates defines the list of templates that this Terrafile defines
 	Templates []*TerraTemplate `hcl:"template,block"`
 	Variables *TerraVariables  `hcl:"variables,block"`
@@ -75,8 +75,8 @@ func ParseTerrafile(file string) (*Terrafile, error) {
 	}
 	terrafile.Path = file
 	terrafile.Dir = filepath.Dir(file)
-	// Set the default to be a leaf. If an ancestor is added it is set to false
-	terrafile.IsLeaf = true
+	// Set the default to be a root module. If an ancestor is added it is set to false
+	terrafile.IsRoot = true
 
 	// Check if there's a template directory
 	tmplDir := filepath.Join(filepath.Dir(file), "templates")

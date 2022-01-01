@@ -22,7 +22,7 @@ type BuildData struct {
 }
 
 func Build(config *parser.TerraConfig) error {
-	for _, terrafile := range config.BuildFiles() {
+	for _, terrafile := range config.RootModules() {
 		buildValues, valuesErr := terrafile.BuildValues()
 		if valuesErr != nil {
 			return fmt.Errorf("getting build values for terrafile \"%s\": %w", terrafile.Path, valuesErr)

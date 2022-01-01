@@ -23,7 +23,7 @@ func Run(config *parser.TerraConfig, opts ...func(r *TerraRun)) error {
 		opt(&run)
 	}
 
-	for _, tf := range config.BuildFiles() {
+	for _, tf := range config.RootModules() {
 		fmt.Println("")
 		fmt.Println("##################################")
 		fmt.Println("Calling Runner in", tf.Dir)
