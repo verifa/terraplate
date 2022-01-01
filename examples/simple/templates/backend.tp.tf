@@ -1,6 +1,6 @@
 
 terraform {
   backend "local" {
-    path = "{{ .Values.tfstate }}"
+    path = "{{ .Values.tfstate_file }}"
   }
 }

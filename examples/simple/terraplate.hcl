@@ -1,6 +1,6 @@
 
 values {
-  tfstate = "terraform.tfstate"
+  tfstate_file = "terraform.tfstate"
 }
 
 # Refer to the template ignore.tp.tf

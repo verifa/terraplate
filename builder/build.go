@@ -37,7 +37,6 @@ func Build(config *parser.TerraConfig) error {
 			return fmt.Errorf("building Terraplate Terraform file: %w", err)
 		}
 
-		baseDir := filepath.Dir(terrafile.Path)
 		for _, terraTmpl := range terrafile.BuildTemplates() {
 			// Make sure the template has at least one source
 			if !terraTmpl.HasSource() {
@@ -69,7 +68,7 @@ func Build(config *parser.TerraConfig) error {
 			// Add option to error on missing keys
 			tmpl.Option("missingkey=error")
 
-			target := filepath.Join(baseDir, terraTmpl.BuildTarget())
+			target := filepath.Join(terrafile.Dir, terraTmpl.BuildTarget())
 			var contents bytes.Buffer
 			// Apply the template to the vars map and write the result to file.
 			if execErr := tmpl.Execute(&contents, buildData); execErr != nil {
@@ -86,28 +85,14 @@ func Build(config *parser.TerraConfig) error {
 
 		}
 
-		// Generate the tfvars file
-		tfvars := filepath.Join(baseDir, "terraform.tfvars")
-		file, createErr := os.Create(tfvars)
-		if createErr != nil {
-			return fmt.Errorf("creating file %s: %w", tfvars, createErr)
-		}
-		defer file.Close()
-
-		tmpl, tmplErr := template.New("terraform.tfvars").Funcs(builtinFuncs()).Option("missingkey=error").Parse(tfvarsTemplate)
-		if tmplErr != nil {
-			return fmt.Errorf("parsing tfvars for terraplate file %s: %w", terrafile.Path, tmplErr)
-		}
-		var tfvarsBuffer bytes.Buffer
-		// Apply the template to the vars map and write the result to file.
-		if execErr := tmpl.Execute(&tfvarsBuffer, buildData); execErr != nil {
-			return fmt.Errorf("executing template %s: %w", terrafile.Path, execErr)
-		}
-		if _, writeErr := file.Write(hclwrite.Format(tfvarsBuffer.Bytes())); writeErr != nil {
-			return fmt.Errorf("writing tfvars file %s: %w", tfvars, writeErr)
+		// TODO: create toggle to built tfvars file
+		if false {
+			if err := buildTfvars(terrafile, config, &buildData); err != nil {
+				return fmt.Errorf("building tfvars file: %w", err)
+			}
 		}
 
-		fmt.Println("Successfully built Terraplate in", terrafile.Dir)
+		fmt.Printf("Successfully built %s - %d templates built\n", terrafile.Dir, len(terrafile.BuildTemplates()))
 	}
 
 	return nil
@@ -116,8 +101,7 @@ func Build(config *parser.TerraConfig) error {
 // buildTerraplate builds the terraplate terraform file which contains the
 // variables (with defaults) and terraform block
 func buildTerraplate(terrafile *parser.Terrafile, config *parser.TerraConfig, buildData *BuildData) error {
-	baseDir := filepath.Dir(terrafile.Path)
-	path := filepath.Join(baseDir, "terraplate.tf")
+	path := filepath.Join(terrafile.Dir, "terraplate.tf")
 	// Create the Terraform file
 	tfFile := hclwrite.NewEmptyFile()
 
@@ -160,6 +144,30 @@ func buildTerraplate(terrafile *parser.Terrafile, config *parser.TerraConfig, bu
 	defer file.Close()
 	if _, writeErr := file.Write(hclwrite.Format(hclwrite.Format(tfFile.Bytes()))); writeErr != nil {
 		return fmt.Errorf("writing file %s: %w", path, writeErr)
+	}
+	return nil
+}
+
+func buildTfvars(terrafile *parser.Terrafile, config *parser.TerraConfig, buildData *BuildData) error {
+	// Generate the tfvars file
+	tfvars := filepath.Join(terrafile.Dir, "terraform.tfvars")
+	file, createErr := os.Create(tfvars)
+	if createErr != nil {
+		return fmt.Errorf("creating file %s: %w", tfvars, createErr)
+	}
+	defer file.Close()
+
+	tmpl, tmplErr := template.New("terraform.tfvars").Funcs(builtinFuncs()).Option("missingkey=error").Parse(tfvarsTemplate)
+	if tmplErr != nil {
+		return fmt.Errorf("parsing tfvars for terraplate file %s: %w", terrafile.Path, tmplErr)
+	}
+	var tfvarsBuffer bytes.Buffer
+	// Apply the template to the vars map and write the result to file.
+	if execErr := tmpl.Execute(&tfvarsBuffer, buildData); execErr != nil {
+		return fmt.Errorf("executing template %s: %w", terrafile.Path, execErr)
+	}
+	if _, writeErr := file.Write(hclwrite.Format(tfvarsBuffer.Bytes())); writeErr != nil {
+		return fmt.Errorf("writing tfvars file %s: %w", tfvars, writeErr)
 	}
 	return nil
 }
