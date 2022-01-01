@@ -25,5 +25,5 @@ examples/**/*.*
 !examples/**/*.md
 !examples/**/templates/*
 
-# TODO: release workflow
-.github/workflows/release.yaml
+# goreleaser build directory
+dist/

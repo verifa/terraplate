@@ -40,8 +40,8 @@ jobs:
         run: go test -failfast ./...
         # Build with GoReleaser (but don't release!).
         # This verifies that the GoReleaser config is valid and can build
-      # - name: Run GoReleaser
-      #   uses: goreleaser/goreleaser-action@v2
-      #   with:
-      #     version: latest
-      #     args: build --snapshot
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v2
+        with:
+          version: latest
+          args: build --snapshot --rm-dist

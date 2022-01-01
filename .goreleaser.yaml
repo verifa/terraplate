@@ -1,0 +1,57 @@
+project_name: terraplate
+before:
+  hooks:
+    - go mod tidy
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    ldflags:
+      - "-s -w"
+      - "-X github.com/verifa/terraplate/cmd.version={{.Version}}"
+      - "-X github.com/verifa/terraplate/cmd.commit={{.Commit}}"
+      - "-X github.com/verifa/terraplate/cmd.date={{.Date}}"
+checksum:
+  name_template: "checksums.txt"
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+changelog:
+  sort: asc
+
+brews:
+  - name: terraplate
+    tap:
+      owner: verifa
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    folder: Formula
+    homepage: "https://github.com/verifa/terraplate"
+    description: "Terraplate"
+    test: |
+      system "#{bin}/bubbly --version"
+
+dockers:
+  - goos: linux
+    goarch: amd64
+    skip_push: "false"
+    use: buildx
+    dockerfile: Dockerfile.goreleaser
+    image_templates:
+      - "verifa/{{ .ProjectName }}:latest"
+      - "verifa/{{ .ProjectName }}:{{ .Tag }}"
+      - "verifa/{{ .ProjectName }}:{{ .Major }}"
+      - "verifa/{{ .ProjectName }}:{{ .Major }}.{{ .Minor }}"
+      - "verifa/{{ .ProjectName }}:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+    build_flag_templates:
+      - "--pull"
+
+release:
+  github:
+    owner: verifa
+    name: terraplate
+  prerelease: auto
+  disable: false
+  draft: false
