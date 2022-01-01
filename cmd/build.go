@@ -24,7 +24,7 @@ import (
 	"github.com/verifa/terraplate/runner"
 )
 
-var skipValidate bool
+var doValidate bool
 
 // buildCmd represents the build command
 var buildCmd = &cobra.Command{
@@ -44,8 +44,8 @@ templates and configurations detected.`,
 			return fmt.Errorf("building terrplate: %w", err)
 		}
 
-		if !skipValidate {
-			if err := runner.Run(config, runner.RunValidate()); err != nil {
+		if doValidate {
+			if err := runner.Run(config, runner.RunInit(), runner.RunValidate()); err != nil {
 				return fmt.Errorf("validation failed: %w", err)
 			}
 		}
@@ -56,6 +56,5 @@ templates and configurations detected.`,
 
 func init() {
 	rootCmd.AddCommand(buildCmd)
-
-	buildCmd.Flags().BoolVar(&skipValidate, "skip-validate", false, "Skip calling terraform validate after build")
+	buildCmd.Flags().BoolVar(&doValidate, "validate", false, "Validate (requires init) each root module after build")
 }
