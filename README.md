@@ -41,6 +41,8 @@ Templates with the suffix `.tf` are automatically detected, and a good practice 
 
 Terraplate also generates a `terraplate.tf` file containing things like variables with default values, the `terraform {}` block with the `required_version` and `required_providers` (if specified).
 
+[![asciicast](https://asciinema.org/a/DXAzFxSUWFaYn5iPU8DnliyRZ.svg)](https://asciinema.org/a/DXAzFxSUWFaYn5iPU8DnliyRZ)
+
 ## Documentation
 
 Please check the [documentation](./DOCUMENTATION.md) for more details like installation and configurations.
