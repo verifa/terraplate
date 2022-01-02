@@ -1,4 +1,4 @@
-# Terrplate Documentation
+# Terraplate Documentation
 
 This page contains the initial workings of the Terraplate documentation.
 
@@ -184,22 +184,26 @@ Terraform Docs: <https://www.terraform.io/language/settings#specifying-a-require
 
 ## Commands
 
-```bash
-$ terraplate --help
-DRY Terraform using Go Templates.
+Use the `terraplate --help` option to get the complete list of commands, and also more details on a subcommand, e.g. `terraplate build --help`
 
-Terraplate keeps your Terraform DRY.
-Create templates that get built using Go Templates to avoid repeating common
-Terraform configurations like providers and backend.
+### `terraplate parse`
 
-Usage:
-  terraplate [command]
+The `parse` command will not actually do anything. It is meant as more of a debug command to see which Terrafiles have been detected and the templates that will be built.
 
-Available Commands:
-  apply       Runs terraform apply on all subdirectories
-  build       Build Terraform files based your Terrafiles
-  completion  Generate the autocompletion script for the specified shell
-  help        Help about any command
-  init        Runs terraform init on all subdirectories
-  plan        Runs terraform plan on all subdirectories
-```
+In the typical development process, `parse` would be the first command that you call.
+
+### `terraplate build`
+
+The `build` command parses the Terrafiles in your directory structure and builds the templates and Terraform files.
+
+### `terraplate init`
+
+The `init` commands runs `terraform init` in each root module detected.
+
+### `terraplate plan`
+
+The `plan` commands runs `terraform plan` in each root module detected.
+
+### `terraplate apply`
+
+The `apply` commands runs `terraform apply` in each root module detected.

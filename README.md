@@ -5,9 +5,38 @@
 
 Terraplate is a thin wrapper around Terraform aimed at reducing the amount of duplicate code used when working with multiple different Terraform [root modules](https://www.terraform.io/language/modules#the-root-module).
 
-The Terraform backend (or remote) and provider declarations are two configurations that are needed for every root module.
-Often ordinary Terraform code is also duplicated (such as invoking a module, or reading from a config file), which is not solved by simply using modules.
-It is the goal of Terraplate to help reduce the burden of maintaining these by using [Go Templates](https://pkg.go.dev/text/template) to build Terraform code for you.
+## Who is it for
+
+**1. Terragrunt users who want to use Terraform Cloud.**
+
+This was one of our use cases when building Terraplate.
+Terraplate should provide a familiar feeling and allow you to build vanilla Terraform.
+
+**2. Terraform users with multiple [Root Modules](https://www.terraform.io/language/modules#the-root-module)**
+
+This is related to 1. above, where users have already solved this with Terragrunt.
+
+Once you start to scale your Terraform usage you will not want to put all of your code into a single root module.
+That would mean one state containing all of your resources.
+
+For example, when working with Kubernetes it is also [strongly recommended](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs#stacking-with-managed-kubernetes-cluster-resources) to split the cluster creation from the creation of Kubernetes resources using Terraform.
+
+[Terraform Workspaces](https://www.terraform.io/language/state/workspaces#when-to-use-multiple-workspaces) do not solve this, quoting from their own documentation:
+
+> *Workspaces alone are not a suitable tool for system decomposition, because each subsystem should have its own separate configuration and backend, and will thus have its own distinct set of workspaces.*
+
+Terraplate is designed to keep the configurations and backend DRY.
+
+## What it does
+
+Terraplate traverses up and down from the working directory detecting Terraplate files ("Terrafiles" for short), treating the Terrafiles without nested Terrafiles as [Root Modules](https://www.terraform.io/language/modules#the-root-module).
+
+Terraplate builds Terraform files based on your provided Terraform templates (using the Go Templating engine).
+Define your Terraform configs once, and use Go Templates to substitue the values based on the different root modules.
+
+The built files are completely normal Terraform files, that should be checked into Git and can be run either via the `terraform` CLI, [Terraform Cloud](https://www.terraform.io/cloud), or using the `terraplate` CLI.
+
+[![asciicast](https://asciinema.org/a/DXAzFxSUWFaYn5iPU8DnliyRZ.svg)](https://asciinema.org/a/DXAzFxSUWFaYn5iPU8DnliyRZ)
 
 ## Motivation
 
@@ -18,30 +47,14 @@ The main reasons for developing Terraplate when Terragrunt exists is the followi
 
 1. Terragrunt does not use native Terraform syntax.
    1. Terragrunt cannot be used with Terraform Cloud
-   2. The Terraform `module {}` block feels smoother and nicer than a single `terragrunt.hcl` file (note that Terragrunt existed before Terraform modules).
-   3. Onboarding new people to Terragrunt adds an extra layer of complexity because it does some magic behind the scenes
+   2. Onboarding new people to Terragrunt adds an extra layer of complexity
 2. Most of the functions, like `find_in_parent_folders()`, feel quite repetitive when in most cases that's what you want
    1. Terraplate's behaviour is built around directory structure and creates a tree of *Terrafiles* (Terraplate files) which inherit everything from their ancestors by default
 
-There's definitely a ton of stuff you probably cannot do with Terraplate that you can with Terragrunt.
-Like mentioned, we are Terragrunt fans and were living to find a happy place using Terraform at scale without Terragrunt, and that's why Terraplate was created.
+There's a lot of things you can do with Terragrunt that you cannot do with Terraplate.
+Like mentioned, we are Terragrunt fans and have been trying to find a happy place using *just* Terraform, and that's why Terraplate was created.
 
 If you are a Terragrunt user and find useful things missing, please raise an issue or discussion :)
-
-## How it works
-
-Terraplate works by traversing up and down from the working directory detecting Terraplate files ("Terrafiles" for short).
-Terrafiles are detected by either being called `terraplate.hcl` or with the suffix `.tp.hcl`.
-
-Terraplate builds a tree of Terrafiles (based on the directory hierarchy), with leaf nodes representing Terraform [Root Modules](https://www.terraform.io/language/modules#the-root-module) (i.e. Terraform should be invoked from this directory).
-The Terrafiles are inherited and merged, so any configurations provided in an ancestor Terrafile will be inherited by descendant Terrafiles.
-
-Alongside Terrafiles you can place a `templates` directory which contains files that should be templated to all nested Terrafiles.
-Templates with the suffix `.tf` are automatically detected, and a good practice is to name files with a suffix `.tp.tf` so that when the templates are built it is easy to identify the files that came from Terraplate.
-
-Terraplate also generates a `terraplate.tf` file containing things like variables with default values, the `terraform {}` block with the `required_version` and `required_providers` (if specified).
-
-[![asciicast](https://asciinema.org/a/DXAzFxSUWFaYn5iPU8DnliyRZ.svg)](https://asciinema.org/a/DXAzFxSUWFaYn5iPU8DnliyRZ)
 
 ## Documentation
 
