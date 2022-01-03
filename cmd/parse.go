@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/verifa/terraplate/parser"
@@ -40,7 +41,7 @@ the build command, for example.`,
 
 			fmt.Println("Templates:")
 			for _, tmpl := range tf.BuildTemplates() {
-				fmt.Printf(" - %s --> %s\n", tmpl.Source, tmpl.Target)
+				fmt.Printf(" - %s: %s --> %s\n", tmpl.Name, strings.Join(tmpl.SourceFiles(), ","), tmpl.BuildTarget())
 			}
 			fmt.Println("Variables:")
 			for name := range tf.BuildVariables() {

@@ -16,9 +16,12 @@ import (
 
 // BuildData defines the data which is passed to the Go template engine
 type BuildData struct {
-	Variables map[string]cty.Value
+	Variables map[string]interface{}
 	Values    map[string]interface{}
 	Terrafile *parser.Terrafile
+	// Path is the relative path from the root Terrafile (highest ancestor) to
+	// the current Terrafile being built
+	Path string
 }
 
 func Build(config *parser.TerraConfig) error {
@@ -27,10 +30,15 @@ func Build(config *parser.TerraConfig) error {
 		if valuesErr != nil {
 			return fmt.Errorf("getting build values for terrafile \"%s\": %w", terrafile.Path, valuesErr)
 		}
+		buildVars, err := terrafile.BuildVariablesAsGo()
+		if err != nil {
+			return fmt.Errorf("creating build variables: %w", err)
+		}
 		buildData := BuildData{
-			Variables: terrafile.BuildVariables(),
+			Variables: buildVars,
 			Values:    buildValues,
 			Terrafile: terrafile,
+			Path:      terrafile.RelativePath(),
 		}
 
 		if err := buildTerraplate(terrafile, config, &buildData); err != nil {
@@ -58,7 +66,7 @@ func Build(config *parser.TerraConfig) error {
 				tmplBytes = append(tmplBytes, contents...)
 			}
 
-			tmpl, tmplErr := template.New(terraTmpl.Target).
+			tmpl, tmplErr := template.New(terraTmpl.BuildTarget()).
 				Option("missingkey=error").
 				Funcs(builtinFuncs()).
 				Parse(string(tmplBytes))
@@ -129,7 +137,7 @@ func buildTerraplate(terrafile *parser.Terrafile, config *parser.TerraConfig, bu
 	tfFile.Body().AppendNewline()
 
 	// Write variables
-	for name, value := range buildData.Variables {
+	for name, value := range terrafile.BuildVariables() {
 		varBlock := hclwrite.NewBlock("variable", []string{name})
 		varBlock.Body().SetAttributeValue("default", value)
 		tfFile.Body().AppendBlock(varBlock)

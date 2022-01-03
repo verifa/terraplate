@@ -90,18 +90,14 @@ func ParseTerrafile(file string) (*Terrafile, error) {
 
 func parseTemplates(terrafile *Terrafile, dir string) error {
 
-	entries, readErr := os.ReadDir(dir)
-	if readErr != nil {
-		if os.IsNotExist(readErr) {
-			// This is fine, and there's nothing to do
-			return nil
-		}
-		return fmt.Errorf("reading templates directory %s: %w", dir, readErr)
-	}
+	// First handle the templates defined in a Terrafile, by setting defaults
+	// and trimming suffixes, etc.
 	var tmplSourceMap = make(map[string]*TerraTemplate)
 	var tmplNameMap = make(map[string]*TerraTemplate)
 	var defaultBuild = true
 	for _, tmpl := range terrafile.Templates {
+		// Trim suffix, if exists
+		tmpl.Name = strings.TrimSuffix(tmpl.Name, ".tp")
 		// Set the defaults for defined templates
 		if tmpl.Build == nil {
 			tmpl.Build = &defaultBuild
@@ -113,6 +109,16 @@ func parseTemplates(terrafile *Terrafile, dir string) error {
 		tmpl.TemplateDir = dir
 	}
 
+	// Next check if there is a templates directory. It's not an error if not.
+	entries, readErr := os.ReadDir(dir)
+	if readErr != nil {
+		if os.IsNotExist(readErr) {
+			// This is fine, and there's nothing to do
+			return nil
+		}
+		return fmt.Errorf("reading templates directory %s: %w", dir, readErr)
+	}
+
 	for _, entry := range entries {
 		if entry.IsDir() {
 			// Skip directories
@@ -122,6 +128,7 @@ func parseTemplates(terrafile *Terrafile, dir string) error {
 			// Trim the tmpl suffix to get the end terraform filename
 			tfFile := strings.TrimSuffix(entry.Name(), ".tmpl")
 			defaultName := strings.TrimSuffix(tfFile, ".tf")
+			defaultName = strings.TrimSuffix(defaultName, ".tp")
 			// Check if the template was defined in the terraplate configuration.
 			// This can be done either by source file matching or the default
 			// name matching
@@ -176,6 +183,34 @@ func (t *Terrafile) TraverseAncestors(visit func(ancestor *Terrafile) error) err
 	return nil
 }
 
+// RootAncestor returns the upmost (root) ancestor in the hierarchy
+func (t *Terrafile) RootAncestor() *Terrafile {
+	tf := t
+	t.TraverseAncestors(func(ancestor *Terrafile) error {
+		tf = ancestor
+		return nil
+	})
+	return tf
+}
+
+// RelativePath gets the relative path from the Root Ancestor Terrafile to this Terrafile
+func (t *Terrafile) RelativePath() string {
+	root := t.RootAncestor()
+	rootAbsDir, absErr := filepath.Abs(root.Dir)
+	if absErr != nil {
+		panic(fmt.Sprintf("cannot get absolute path to Terrafile %s: %s", root.Path, absErr.Error()))
+	}
+	tfAbsDir, absErr := filepath.Abs(t.Dir)
+	if absErr != nil {
+		panic(fmt.Sprintf("cannot get absolute path to Terrafile %s: %s", t.Path, absErr.Error()))
+	}
+	relPath, relErr := filepath.Rel(rootAbsDir, tfAbsDir)
+	if relErr != nil {
+		panic(fmt.Sprintf("cannot get relative path from ancestor Terrafile %s to %s: %s", root.Path, t.Path, relErr.Error()))
+	}
+	return relPath
+}
+
 // HasSource returns true if the template has a source (or an ancestor has one)
 // and false if not. In which case, there's likely something wrong
 func (t *TerraTemplate) HasSource() bool {
@@ -206,6 +241,7 @@ func (t *TerraTemplate) SourceFiles() []string {
 	}
 	return sourceFiles
 }
+
 func (t *TerraTemplate) BuildTarget() string {
 	if t.Target != "" {
 		return t.Target
@@ -236,28 +272,24 @@ func (t *Terrafile) BuildVariables() map[string]cty.Value {
 	return buildVars
 }
 
+func (t *Terrafile) BuildVariablesAsGo() (map[string]interface{}, error) {
+	buildVars, err := fromCtyValues(t.BuildVariables())
+	if err != nil {
+		return nil, fmt.Errorf("converting Cty values into Go values: %w", err)
+	}
+	return buildVars, err
+}
+
 func (t *Terrafile) BuildValues() (map[string]interface{}, error) {
-	var buildValues = make(map[string]interface{})
+	var buildValues map[string]interface{}
 	if t.Values != nil {
-		for name, value := range t.Values.Values {
-			// This is a bit HACKY, but there is not a straight forward way to
-			// get cty values into interface{} values, but we can JSON serialize
-			// and then back to interface{}
-			simple := ctyjson.SimpleJSONValue{
-				Value: value,
-			}
-			b, err := simple.MarshalJSON()
-			if err != nil {
-				return nil, fmt.Errorf("json marshalling cty value %s: %w", name, err)
-			}
-
-			var val interface{}
-			if err := json.Unmarshal(b, &val); err != nil {
-				return nil, fmt.Errorf("json unmarshalling cty value %s: %w", name, err)
-			}
-
-			buildValues[name] = val
+		var err error
+		buildValues, err = fromCtyValues(t.Values.Values)
+		if err != nil {
+			return nil, fmt.Errorf("converting Cty values into Go values: %w", err)
 		}
+	} else {
+		buildValues = make(map[string]interface{})
 	}
 	if t.Ancestor == nil {
 		return buildValues, nil
@@ -363,4 +395,28 @@ func (t *Terrafile) BuildTemplates() []*TerraTemplate {
 		templates = append(templates, tmpl)
 	}
 	return templates
+}
+
+func fromCtyValues(values map[string]cty.Value) (map[string]interface{}, error) {
+	var retValues = make(map[string]interface{})
+	for name, value := range values {
+		// This is a bit HACKY, but there is not a straight forward way to
+		// get cty values into interface{} values, but we can JSON serialize
+		// and then back to interface{}
+		simple := ctyjson.SimpleJSONValue{
+			Value: value,
+		}
+		b, err := simple.MarshalJSON()
+		if err != nil {
+			return nil, fmt.Errorf("json marshalling cty value %s: %w", name, err)
+		}
+
+		var val interface{}
+		if err := json.Unmarshal(b, &val); err != nil {
+			return nil, fmt.Errorf("json unmarshalling cty value %s: %w", name, err)
+		}
+
+		retValues[name] = val
+	}
+	return retValues, nil
 }
