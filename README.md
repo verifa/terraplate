@@ -1,4 +1,6 @@
-# Terraplate - DRY Terraform with Go Templates
+<img src="./terraplate-logo.svg" width="500">
+
+> DRY Terraform with Go Templates
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/verifa/terraplate)](https://goreportcard.com/report/github.com/verifa/terraplate)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
