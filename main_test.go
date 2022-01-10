@@ -11,7 +11,8 @@ import (
 
 func TestMain(t *testing.T) {
 	type test struct {
-		dir string
+		dir           string
+		skipTerraform bool
 	}
 	tests := []test{
 		{
@@ -21,27 +22,34 @@ func TestMain(t *testing.T) {
 			dir: "examples/simple/dev",
 		},
 		{
-			dir: "examples/aws",
+			dir:           "examples/aws",
+			skipTerraform: true, // would require aws auth
 		},
 		{
-			dir: "examples/aws/stack",
+			dir:           "examples/aws/stack",
+			skipTerraform: true, // would require aws auth
+		},
+		{
+			dir: "examples/nested",
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.dir, func(t *testing.T) {
 			config, err := parser.Parse(&parser.Config{
-				Chdir: "examples/simple",
+				Chdir: tc.dir,
 			})
 			require.NoError(t, err)
 			buildErr := builder.Build(config)
 			require.NoError(t, buildErr)
 
-			runErr := runner.Run(config,
-				runner.RunValidate(),
-				runner.RunInit(),
-				runner.RunPlan(),
-				runner.RunApply())
-			require.NoError(t, runErr)
+			if !tc.skipTerraform {
+				runErr := runner.Run(config,
+					runner.RunValidate(),
+					runner.RunInit(),
+					runner.RunPlan(),
+					runner.RunApply())
+				require.NoError(t, runErr)
+			}
 		})
 	}
 }

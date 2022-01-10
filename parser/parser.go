@@ -82,6 +82,7 @@ func walkDownDirectory(dir string, ancestor *Terrafile) ([]*Terrafile, error) {
 				ancestor.IsRoot = false
 				terrafile.Ancestor = ancestor
 			}
+
 			terrafiles = append(terrafiles, terrafile)
 		}
 	}

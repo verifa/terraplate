@@ -350,43 +350,30 @@ func (t *Terrafile) BuildRequiredVersion() string {
 	return requiredVersion
 }
 
-func (t *Terrafile) BuildTemplates() []*TerraTemplate {
-	var tmplMap = make(map[string]*TerraTemplate)
+func (t *Terrafile) BuildTemplates() []TerraTemplate {
+	var tmplMap = make(map[string]TerraTemplate)
 
 	for _, tmpl := range t.Templates {
-		tmplMap[tmpl.Name] = tmpl
+		tmplMap[tmpl.Name] = *tmpl
 	}
 
-	// var ancestor = t.Ancestor
-	// for ancestor != nil {
-	// 	for _, tmpl := range ancestor.Templates {
-	// 		t, ok := tmplMap[tmpl.Name]
-	// 		if ok {
-	// 			t.Ancestors = append(t.Ancestors, tmpl)
-	// 			continue
-	// 		}
-
-	// 		// If it did not exist, then set it
-	// 		tmplMap[tmpl.Name] = tmpl
-	// 	}
-	// 	// Set next ancestor
-	// 	ancestor = ancestor.Ancestor
-	// }
 	// Recurse through all ancestors and add the templates to the template map
 	t.TraverseAncestors(func(ancestor *Terrafile) error {
 		for _, tmpl := range ancestor.Templates {
 			t, ok := tmplMap[tmpl.Name]
 			if ok {
 				t.Ancestors = append(t.Ancestors, tmpl)
+				// Reassign the template to the map
+				tmplMap[tmpl.Name] = t
 				continue
 			}
 			// If it did not exist, then set it
-			tmplMap[tmpl.Name] = tmpl
+			tmplMap[tmpl.Name] = *tmpl
 		}
 		return nil
 	})
 
-	var templates = make([]*TerraTemplate, 0, len(tmplMap))
+	var templates = make([]TerraTemplate, 0, len(tmplMap))
 	for _, tmpl := range tmplMap {
 		// Check whether this template should be built, if not part
 		if !*tmpl.Build {
