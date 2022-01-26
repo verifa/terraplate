@@ -20,6 +20,8 @@ build/
 # Ignore the generated files (.tf and .tfvars)
 examples/**/tfplan
 examples/**/*.*
+!examples/**/.gitignore
+!examples/**/*.yaml
 !examples/**/terraplate.hcl
 !examples/**/*.tp.hcl
 !examples/**/*.md

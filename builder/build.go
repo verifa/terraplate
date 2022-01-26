@@ -22,6 +22,8 @@ type BuildData struct {
 	// Path is the relative path from the root Terrafile (highest ancestor) to
 	// the current Terrafile being built
 	Path string
+	// Root is the absolute path to the root Terrafile
+	Root string
 }
 
 func Build(config *parser.TerraConfig) error {
@@ -39,6 +41,7 @@ func Build(config *parser.TerraConfig) error {
 			Values:    buildValues,
 			Terrafile: terrafile,
 			Path:      terrafile.RelativePath(),
+			Root:      terrafile.RootPath(),
 		}
 
 		if err := buildTerraplate(terrafile, config, &buildData); err != nil {

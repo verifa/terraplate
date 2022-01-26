@@ -193,6 +193,16 @@ func (t *Terrafile) RootAncestor() *Terrafile {
 	return tf
 }
 
+// Returns the absolute path of the root Terrafile
+func (t *Terrafile) RootPath() string {
+	root := t.RootAncestor()
+	rootAbsDir, absErr := filepath.Abs(root.Dir)
+	if absErr != nil {
+		panic(fmt.Sprintf("cannot get absolute path to Terrafile %s: %s", root.Path, absErr.Error()))
+	}
+	return rootAbsDir
+}
+
 // RelativePath gets the relative path from the Root Ancestor Terrafile to this Terrafile
 func (t *Terrafile) RelativePath() string {
 	root := t.RootAncestor()

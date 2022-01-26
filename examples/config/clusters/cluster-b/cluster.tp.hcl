@@ -1,0 +1,4 @@
+
+variables {
+  cluster = "cluster-b"
+}

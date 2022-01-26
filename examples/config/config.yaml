@@ -1,0 +1,15 @@
+clusters:
+  cluster-a:
+    prod:
+      version: 1.21
+      loadbalancer:
+        - host: myapp.verifa.io
+    staging:
+      version: 1.21
+      loadbalancer:
+        - host: myapp-staging.verifa.io
+  cluster-b:
+    prod:
+      version: 1.21
+    staging:
+      version: 1.21

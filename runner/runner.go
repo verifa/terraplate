@@ -123,6 +123,35 @@ func runCmd(tf *parser.Terrafile, args []string) error {
 	args = append(tfArgs(tf), args...)
 	execCmd := exec.Command(terraExe, args...)
 	fmt.Printf("Executing:\n%s\n\n", execCmd.String())
+	// stdout, err := execCmd.StdoutPipe()
+	// if err != nil {
+	// 	return fmt.Errorf("stdout pipe: %w", err)
+	// }
+	// var stderr bytes.Buffer
+	// execCmd.Stderr = &stderr
+	// // stderr, err := execCmd.StderrPipe()
+	// // if err != nil {
+	// // 	return fmt.Errorf("stderr pipe: %w", err)
+	// // }
+	// if startErr := execCmd.Start(); startErr != nil {
+	// 	return fmt.Errorf("starting command: %w", err)
+	// }
+
+	// scanner := bufio.NewScanner(stdout)
+	// scanner.Split(bufio.ScanWords)
+	// for scanner.Scan() {
+	// 	m := scanner.Text()
+	// 	fmt.Println(m)
+	// }
+
+	// if waitErr := execCmd.Wait(); waitErr != nil {
+	// 	return fmt.Errorf("waiting for command: %w", err)
+	// }
+
+	// if stderr.Len() > 0 {
+	// 	fmt.Printf("%s\n", stderr.Bytes())
+	// }
+
 	out, runErr := execCmd.CombinedOutput()
 	if runErr != nil {
 		return fmt.Errorf("executing command %s: %w\n%s", execCmd.String(), runErr, out)

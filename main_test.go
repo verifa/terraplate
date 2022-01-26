@@ -30,6 +30,9 @@ func TestMain(t *testing.T) {
 			skipTerraform: true, // would require aws auth
 		},
 		{
+			dir: "examples/config",
+		},
+		{
 			dir: "examples/nested",
 		},
 	}
