@@ -1,4 +1,3 @@
-
 variables {
   environment = "dev"
 }
