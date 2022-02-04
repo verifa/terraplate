@@ -26,6 +26,8 @@ examples/**/*.*
 !examples/**/*.tp.hcl
 !examples/**/*.md
 !examples/**/templates/*
+# Include all the terraform cloud generated files as they are needed
+!examples/tfcloud/**/*.tf
 
 # goreleaser build directory
 dist/
