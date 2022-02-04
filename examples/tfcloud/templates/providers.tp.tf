@@ -1,0 +1,4 @@
+
+provider "local" {
+  # Configuration options
+}
