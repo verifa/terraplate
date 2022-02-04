@@ -23,13 +23,17 @@ type Terrafile struct {
 	Variables *TerraVariables  `hcl:"variables,block"`
 	Values    *TerraValues     `hcl:"values,block"`
 
-	RequiredVersion   string                  `hcl:"required_version,optional"`
-	RequiredProviders *TerraRequiredProviders `hcl:"required_providers,block"`
+	TerraformBlock *TerraformBlock `hcl:"terraform,block"`
 
 	// Variables map[string]cty.Value `hcl:",remain"`
 	// Ancestor defines any parent/ancestor Terrafiles that this Terrafile
 	// should inherit from
 	Ancestor *Terrafile `hcl:"-"`
+}
+
+type TerraformBlock struct {
+	RequiredVersion   string                  `hcl:"required_version,optional"`
+	RequiredProviders *TerraRequiredProviders `hcl:"required_providers,block"`
 }
 
 type TerraValues struct {
@@ -330,9 +334,14 @@ func (t *Terrafile) BuildValues() (map[string]interface{}, error) {
 }
 
 func (t *Terrafile) BuildRequiredProviders() map[string]RequiredProvider {
+	if t.TerraformBlock == nil {
+		return nil
+	}
+	tfBlock := t.TerraformBlock
+
 	var reqProv map[string]RequiredProvider
-	if t.RequiredProviders != nil {
-		reqProv = t.RequiredProviders.RequiredProviders
+	if tfBlock.RequiredProviders != nil {
+		reqProv = tfBlock.RequiredProviders.RequiredProviders
 	} else {
 		reqProv = make(map[string]RequiredProvider)
 	}
@@ -348,11 +357,14 @@ func (t *Terrafile) BuildRequiredProviders() map[string]RequiredProvider {
 }
 
 func (t *Terrafile) BuildRequiredVersion() string {
-	var requiredVersion = t.RequiredVersion
+	var requiredVersion string
+	if t.TerraformBlock != nil {
+		requiredVersion = t.TerraformBlock.RequiredVersion
+	}
 	t.TraverseAncestors(func(ancestor *Terrafile) error {
 		if requiredVersion == "" {
-			if ancestor.RequiredVersion != "" {
-				requiredVersion = ancestor.RequiredVersion
+			if ancestor.TerraformBlock != nil && ancestor.TerraformBlock.RequiredVersion != "" {
+				requiredVersion = ancestor.TerraformBlock.RequiredVersion
 			}
 		}
 		return nil
