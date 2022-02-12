@@ -78,9 +78,9 @@ func RunApply() func(r *TerraRun) {
 	}
 }
 
-func InitUpgrade(upgrade bool) func(r *TerraRun) {
+func ExtraArgs(extraArgs []string) func(r *TerraRun) {
 	return func(r *TerraRun) {
-		r.upgrade = upgrade
+		r.extraArgs = extraArgs
 	}
 }
 
@@ -91,21 +91,20 @@ type TerraRun struct {
 	apply    bool
 
 	// Terraform command flags
-	upgrade bool
+	extraArgs []string
 }
 
 func initCmd(run *TerraRun, tf *parser.Terrafile) error {
 	var args []string
 	args = append(args, string(terraInit))
-	if run.upgrade {
-		args = append(args, "--upgrade")
-	}
+	args = append(args, run.extraArgs...)
 	return runCmd(tf, args)
 }
 
 func validateCmd(run *TerraRun, tf *parser.Terrafile) error {
 	var args []string
 	args = append(args, string(terraValidate))
+	args = append(args, run.extraArgs...)
 	return runCmd(tf, args)
 }
 
@@ -117,6 +116,7 @@ func planCmd(run *TerraRun, tf *parser.Terrafile) error {
 		"-input=false",
 		"-out=tfplan",
 	)
+	args = append(args, run.extraArgs...)
 	return runCmd(tf, args)
 }
 
@@ -128,6 +128,7 @@ func applyCmd(run *TerraRun, tf *parser.Terrafile) error {
 		"-input=false",
 		"tfplan",
 	)
+	args = append(args, run.extraArgs...)
 	return runCmd(tf, args)
 }
 

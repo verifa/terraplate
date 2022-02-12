@@ -23,8 +23,6 @@ import (
 	"github.com/verifa/terraplate/runner"
 )
 
-var doInitUpgrade bool
-
 // initCmd represents the init command
 var initCmd = &cobra.Command{
 	Use:   "init",
@@ -35,12 +33,10 @@ var initCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("parsing terraplate: %w", err)
 		}
-		return runner.Run(config, runner.RunInit(), runner.InitUpgrade(doInitUpgrade))
+		return runner.Run(config, runner.RunInit(), runner.ExtraArgs(args))
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(initCmd)
-
-	initCmd.Flags().BoolVarP(&doInitUpgrade, "upgrade", "u", false, "Use Terraform upgrade flag when initialising")
 }
