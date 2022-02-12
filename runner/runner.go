@@ -78,16 +78,28 @@ func RunApply() func(r *TerraRun) {
 	}
 }
 
+func InitUpgrade(upgrade bool) func(r *TerraRun) {
+	return func(r *TerraRun) {
+		r.upgrade = upgrade
+	}
+}
+
 type TerraRun struct {
 	validate bool
 	init     bool
 	plan     bool
 	apply    bool
+
+	// Terraform command flags
+	upgrade bool
 }
 
 func initCmd(run *TerraRun, tf *parser.Terrafile) error {
 	var args []string
 	args = append(args, string(terraInit))
+	if run.upgrade {
+		args = append(args, "--upgrade")
+	}
 	return runCmd(tf, args)
 }
 
