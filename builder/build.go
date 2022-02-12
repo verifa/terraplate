@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"text/template"
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -124,7 +126,12 @@ func buildTerraplate(terrafile *parser.Terrafile, config *parser.TerraConfig, bu
 		tfBlock.Body().AppendNewline()
 	}
 	provBlock := hclwrite.NewBlock("required_providers", []string{})
-	for name, value := range terrafile.BuildRequiredProviders() {
+	// We need to iterate over the required providers in order to avoid lots of
+	// changes each time.
+	// Iterate over the sorted keys and then extract the value for that key
+	provMap := terrafile.BuildRequiredProviders()
+	for _, name := range sortedMapKeys(provMap) {
+		value := provMap[name]
 		ctyType, typeErr := gocty.ImpliedType(value)
 		if typeErr != nil {
 			return fmt.Errorf("implying required provider to cty type for provider %s: %w", name, typeErr)
@@ -139,8 +146,12 @@ func buildTerraplate(terrafile *parser.Terrafile, config *parser.TerraConfig, bu
 	tfFile.Body().AppendBlock(tfBlock)
 	tfFile.Body().AppendNewline()
 
-	// Write variables
-	for name, value := range terrafile.BuildVariables() {
+	// We need to iterate over the variables in order to avoid lots of
+	// changes each time.
+	// Iterate over the sorted keys and then extract the value for that key
+	varMap := terrafile.BuildVariables()
+	for _, name := range sortedMapKeys(varMap) {
+		value := varMap[name]
 		varBlock := hclwrite.NewBlock("variable", []string{name})
 		varBlock.Body().SetAttributeValue("default", value)
 		tfFile.Body().AppendBlock(varBlock)
@@ -181,4 +192,18 @@ func buildTfvars(terrafile *parser.Terrafile, config *parser.TerraConfig, buildD
 		return fmt.Errorf("writing tfvars file %s: %w", tfvars, writeErr)
 	}
 	return nil
+}
+
+func sortedMapKeys(v interface{}) []string {
+	rv := reflect.ValueOf(v)
+	if rv.Type().Kind() != reflect.Map {
+		panic(fmt.Sprintf("cannot sort map keys of non-map type %s", rv.Type().String()))
+	}
+	rvKeys := rv.MapKeys()
+	keys := make([]string, 0, len(rvKeys))
+	for _, key := range rvKeys {
+		keys = append(keys, key.String())
+	}
+	sort.Strings(keys)
+	return keys
 }

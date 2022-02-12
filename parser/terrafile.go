@@ -334,10 +334,10 @@ func (t *Terrafile) BuildValues() (map[string]interface{}, error) {
 }
 
 func (t *Terrafile) BuildRequiredProviders() map[string]RequiredProvider {
-	if t.TerraformBlock == nil {
-		return nil
+	var tfBlock TerraformBlock
+	if t.TerraformBlock != nil {
+		tfBlock = *t.TerraformBlock
 	}
-	tfBlock := t.TerraformBlock
 
 	var reqProv map[string]RequiredProvider
 	if tfBlock.RequiredProviders != nil {
