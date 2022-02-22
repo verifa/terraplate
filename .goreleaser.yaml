@@ -31,7 +31,7 @@ brews:
     homepage: "https://github.com/verifa/terraplate"
     description: "Terraplate"
     test: |
-      system "#{bin}/bubbly --version"
+      system "#{bin}/terraplate version"
 
 dockers:
   - goos: linux
