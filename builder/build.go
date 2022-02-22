@@ -143,8 +143,11 @@ func buildTerraplate(terrafile *parser.Terrafile, config *parser.TerraConfig, bu
 		provBlock.Body().SetAttributeValue(name, ctyValue)
 	}
 	tfBlock.Body().AppendBlock(provBlock)
-	tfFile.Body().AppendBlock(tfBlock)
-	tfFile.Body().AppendNewline()
+	// If body is not empty, write the terraform block
+	if isBodyEmpty(tfBlock.Body()) {
+		tfFile.Body().AppendBlock(tfBlock)
+		tfFile.Body().AppendNewline()
+	}
 
 	// We need to iterate over the variables in order to avoid lots of
 	// changes each time.
@@ -206,4 +209,8 @@ func sortedMapKeys(v interface{}) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+func isBodyEmpty(body *hclwrite.Body) bool {
+	return len(body.Attributes()) > 0 && len(body.Blocks()) > 0
 }
