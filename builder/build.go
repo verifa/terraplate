@@ -212,5 +212,5 @@ func sortedMapKeys(v interface{}) []string {
 }
 
 func isBodyEmpty(body *hclwrite.Body) bool {
-	return len(body.Attributes()) > 0 && len(body.Blocks()) > 0
+	return len(body.Attributes()) > 0 || len(body.Blocks()) > 0
 }
