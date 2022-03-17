@@ -20,6 +20,7 @@ type Terrafile struct {
 	IsRoot bool `hcl:"-"`
 	// Templates defines the list of templates that this Terrafile defines
 	Templates []*TerraTemplate `hcl:"template,block"`
+	Locals    *TerraLocals     `hcl:"locals,block"`
 	Variables *TerraVariables  `hcl:"variables,block"`
 	Values    *TerraValues     `hcl:"values,block"`
 
@@ -34,6 +35,9 @@ type Terrafile struct {
 type TerraformBlock struct {
 	RequiredVersion   string                  `hcl:"required_version,optional"`
 	RequiredProviders *TerraRequiredProviders `hcl:"required_providers,block"`
+}
+type TerraLocals struct {
+	Locals map[string]cty.Value `hcl:",remain"`
 }
 
 type TerraValues struct {
@@ -268,6 +272,32 @@ func (t *TerraTemplate) BuildTarget() string {
 	return ""
 }
 
+func (t *Terrafile) BuildLocals() map[string]cty.Value {
+	var buildLocals map[string]cty.Value
+	if t.Locals != nil {
+		buildLocals = t.Locals.Locals
+	} else {
+		buildLocals = make(map[string]cty.Value)
+	}
+	if t.Ancestor == nil {
+		return buildLocals
+	}
+	for name, value := range t.Ancestor.BuildLocals() {
+		if _, ok := buildLocals[name]; !ok {
+			buildLocals[name] = value
+		}
+	}
+	return buildLocals
+}
+
+func (t *Terrafile) BuildLocalsAsGo() (map[string]interface{}, error) {
+	buildLocals, err := fromCtyValues(t.BuildLocals())
+	if err != nil {
+		return nil, fmt.Errorf("converting Cty locals{} values into Go values: %w", err)
+	}
+	return buildLocals, err
+}
+
 func (t *Terrafile) BuildVariables() map[string]cty.Value {
 	var buildVars map[string]cty.Value
 	if t.Variables != nil {
@@ -289,7 +319,7 @@ func (t *Terrafile) BuildVariables() map[string]cty.Value {
 func (t *Terrafile) BuildVariablesAsGo() (map[string]interface{}, error) {
 	buildVars, err := fromCtyValues(t.BuildVariables())
 	if err != nil {
-		return nil, fmt.Errorf("converting Cty values into Go values: %w", err)
+		return nil, fmt.Errorf("converting Cty variables{} values into Go values: %w", err)
 	}
 	return buildVars, err
 }

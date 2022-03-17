@@ -18,6 +18,7 @@ import (
 
 // BuildData defines the data which is passed to the Go template engine
 type BuildData struct {
+	Locals    map[string]interface{}
 	Variables map[string]interface{}
 	Values    map[string]interface{}
 	Terrafile *parser.Terrafile
@@ -30,15 +31,20 @@ type BuildData struct {
 
 func Build(config *parser.TerraConfig) error {
 	for _, terrafile := range config.RootModules() {
-		buildValues, valuesErr := terrafile.BuildValues()
-		if valuesErr != nil {
-			return fmt.Errorf("getting build values for terrafile \"%s\": %w", terrafile.Path, valuesErr)
+		buildLocals, err := terrafile.BuildLocalsAsGo()
+		if err != nil {
+			return fmt.Errorf("creating build locals: %w", err)
 		}
 		buildVars, err := terrafile.BuildVariablesAsGo()
 		if err != nil {
 			return fmt.Errorf("creating build variables: %w", err)
 		}
+		buildValues, valuesErr := terrafile.BuildValues()
+		if valuesErr != nil {
+			return fmt.Errorf("getting build values for terrafile \"%s\": %w", terrafile.Path, valuesErr)
+		}
 		buildData := BuildData{
+			Locals:    buildLocals,
 			Variables: buildVars,
 			Values:    buildValues,
 			Terrafile: terrafile,
@@ -149,6 +155,24 @@ func buildTerraplate(terrafile *parser.Terrafile, config *parser.TerraConfig, bu
 		tfFile.Body().AppendNewline()
 	}
 
+	//
+	// Write the locals {} block
+	//
+	localsMap := terrafile.BuildLocals()
+	localsBlock := hclwrite.NewBlock("locals", nil)
+	for _, name := range sortedMapKeys(localsMap) {
+		value := localsMap[name]
+		localsBlock.Body().SetAttributeValue(name, value)
+	}
+	// If locals map is not empty, write the locals block to the terraplate file
+	if len(localsMap) > 0 {
+		tfFile.Body().AppendBlock(localsBlock)
+		tfFile.Body().AppendNewline()
+	}
+
+	//
+	// Write the variables {} block
+	//
 	// We need to iterate over the variables in order to avoid lots of
 	// changes each time.
 	// Iterate over the sorted keys and then extract the value for that key
