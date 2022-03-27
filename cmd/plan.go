@@ -48,8 +48,9 @@ var planCmd = &cobra.Command{
 			runner.RunPlan(),
 		}
 		if runInit {
-			runOpts = append(runOpts, runner.RunInit(), runner.ExtraArgs(args))
+			runOpts = append(runOpts, runner.RunInit())
 		}
+		runOpts = append(runOpts, runner.ExtraArgs(args))
 		return runner.Run(config, runOpts...)
 	},
 }
