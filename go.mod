@@ -5,6 +5,7 @@ go 1.17
 require (
 	github.com/hashicorp/hcl/v2 v2.11.1
 	github.com/imdario/mergo v0.3.12
+	github.com/remeh/sizedwaitgroup v1.0.0
 	github.com/spf13/cobra v1.3.0
 	github.com/stretchr/testify v1.7.0
 	github.com/zclconf/go-cty v1.10.0

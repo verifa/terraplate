@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 
+	"github.com/remeh/sizedwaitgroup"
 	"github.com/verifa/terraplate/parser"
 )
 
@@ -18,38 +19,27 @@ const (
 )
 
 func Run(config *parser.TerraConfig, opts ...func(r *TerraRun)) error {
-	var run TerraRun
+	// Initialise TerraRun with defaults
+	run := TerraRun{
+		jobs: 1,
+	}
 	for _, opt := range opts {
 		opt(&run)
 	}
 
+	// Start terraform runs in different root modules based on number of concurrent
+	// jobs that are allowed
+	swg := sizedwaitgroup.New(run.jobs)
 	for _, tf := range config.RootModules() {
-		fmt.Println("")
-		fmt.Println("##################################")
-		fmt.Println("Calling Runner in", tf.Dir)
-		fmt.Println("##################################")
-		fmt.Println("")
-		if run.init {
-			if err := initCmd(&run, tf); err != nil {
-				return fmt.Errorf("terrafile %s: %w", tf.Path, err)
-			}
-		}
-		if run.validate {
-			if err := validateCmd(&run, tf); err != nil {
-				return fmt.Errorf("terrafile %s: %w", tf.Path, err)
-			}
-		}
-		if run.plan {
-			if err := planCmd(&run, tf); err != nil {
-				return fmt.Errorf("terrafile %s: %w", tf.Path, err)
-			}
-		}
-		if run.apply {
-			if err := applyCmd(&run, tf); err != nil {
-				return fmt.Errorf("terrafile %s: %w", tf.Path, err)
-			}
-		}
+		swg.Add()
+		tf := tf
+
+		go func() {
+			defer swg.Done()
+			runCmds(&run, tf)
+		}()
 	}
+	swg.Wait()
 
 	return nil
 }
@@ -90,8 +80,39 @@ type TerraRun struct {
 	plan     bool
 	apply    bool
 
+	// Max number of concurrent jobs allowed
+	jobs int
 	// Terraform command flags
 	extraArgs []string
+}
+
+func runCmds(run *TerraRun, tf *parser.Terrafile) error {
+	fmt.Println("")
+	fmt.Println("##################################")
+	fmt.Println("Calling Runner in", tf.Dir)
+	fmt.Println("##################################")
+	fmt.Println("")
+	if run.init {
+		if err := initCmd(run, tf); err != nil {
+			return fmt.Errorf("terrafile %s: %w", tf.Path, err)
+		}
+	}
+	if run.validate {
+		if err := validateCmd(run, tf); err != nil {
+			return fmt.Errorf("terrafile %s: %w", tf.Path, err)
+		}
+	}
+	if run.plan {
+		if err := planCmd(run, tf); err != nil {
+			return fmt.Errorf("terrafile %s: %w", tf.Path, err)
+		}
+	}
+	if run.apply {
+		if err := applyCmd(run, tf); err != nil {
+			return fmt.Errorf("terrafile %s: %w", tf.Path, err)
+		}
+	}
+	return nil
 }
 
 func initCmd(run *TerraRun, tf *parser.Terrafile) error {
