@@ -27,23 +27,52 @@ Check the GitHub Releases: <https://github.com/verifa/terraplate/releases>
 Terraplate works by traversing up and down from the working directory detecting Terraplate files ("Terrafiles" for short).
 Terrafiles are detected by either being called `terraplate.hcl` or with the suffix `.tp.hcl`.
 
-Terraplate builds a tree of Terrafiles (based on the directory hierarchy), with leaf nodes representing Terraform [Root Modules](https://www.terraform.io/language/modules#the-root-module) (i.e. Terraform should be invoked from this directory).
+Terraplate builds a tree of Terrafiles (based on the directory hierarchy), with leaf nodes representing Terraform [Root Modules](https://www.terraform.io/language/modules#the-root-module) (i.e. Terraform should be invoked from these directories).
 The Terrafiles are inherited and merged, so any configurations provided in an ancestor Terrafile will be inherited by descendant Terrafiles.
 
-Alongside Terrafiles you can place a `templates` directory which contains files that should be templated to all nested Terrafiles.
-Templates with the suffix `.tf` are automatically detected, and a good practice is to name files with a suffix `.tp.tf` so that when the templates are built it is easy to identify the files that came from Terraplate.
+Alongside Terrafiles you can place a `templates` directory which contains Go template files that can be templated into vanilla Terraform files.
+Using the `templates` directory is optional, but considered a practice to keep the templates separate.
 
-Terraplate also generates a `terraplate.tf` file containing things like variables with default values, the `terraform {}` block with the `required_version` and `required_providers` (if specified).
+Terraplate also generates a `terraplate.tf` file containing things like variables and locals, as well as the `terraform {}` block containing the `required_version` and `required_providers` (if specified).
 
 ## Terrafile Config
 
 Here are the different configuration blocks that are supported.
 
+### locals
+
+`locals` block defines a map of Terraform locals that will be written to the `terraplate.tf` file.
+
+Use the `locals` block for controlling values in your root modules, e.g. `environment`, `region`, `project`.
+
+Use `locals` when you want to reference these values in your Terraform code.
+Prefer locals over variables unless you want to override something at runtime; in that case `variables` are your friend.
+
+Example:
+
+```hcl
+// env.tp.hcl
+locals {
+  environment = "dev"
+}
+```
+
+Output:
+
+```hcl
+// terraplate.tf
+locals {
+  environment = "dev"
+}
+```
+
+Use this in your Terraform files as a normal Terraform variable, e.g. `${local.environment}`
+
 ### variables
 
-`variables` block defines a map of Terraform variables that will be written to the `terraplate.tf` file with a default.
+`variables` block defines a map of Terraform variables that will be written to the `terraplate.tf` file with default values.
 
-Use the `variables` block for controlling variables in your root modules, prime examples being things like `environment`, `region`, `project`, etc.
+Prefer `locals` over variables if you will not be overriding inputs at runtime.
 
 Example:
 
@@ -69,7 +98,7 @@ Use this in your Terraform files as a normal Terraform variable, e.g. `${var.env
 
 `values` block defines a map of values that are passed to the Go template executor when running the Terraplate build process.
 
-Use this instead of `variables` if you do not want to expose values as Terraform variables but only want to use them during the build process.
+Use this instead of `locals` or `variables` if you do not want to expose values as Terraform variables but only want to use them during the build process.
 A prime example of this is configuring the Terraform backend because variables cannot be used for this.
 
 Example:
@@ -99,38 +128,50 @@ locals {
 
 ### template
 
-`template` block defines a template, or overrides a template already detected in the `templates` folder next to a terrafile.
-
-By default, templates will be built and this can be disabled.
-This is (maybe?) useful if you want to define all your Terraform files as templates in a top-level `templates` directory and control for which leaf Terrafiles the templates should get built.
+`template` block defines a template that will be built to all child root modules (as Terrafiles inherit from their parents).
 
 Templates can also define non-Terraform files in case you want to just do some general-purpose templating, such as creating Makefiles or something spicy.
 
 Example:
 
 ```hcl
-// templates/ignore.tp.tf
+// templates/backend.tmpl
 
-# We don't want this to get generated, by default
-
-# We can still use the Go templating here, e.g. {{ .Values.some_value }}
-
+terraform {
+  backend "s3" {
+    bucket  = "bucket-name"
+    key     = "{{ .RelativeDir }}/terraform.tfstate"
+    region  = "{{ .Locals.aws_region }}"
+    encrypt = true
+  }
+}
 ```
 
 ```hcl
 // terraplate.hcl
-# Reference the template defined above
-template "ignore" {
-    # Set the build as false, which is inherited for all subdirectories
-    # so that this file is never built, unless a descendent Terrafile
-    # sets this back to true
-    build = false
+
+// Define a template to be built, reading the template we have defined.
+// All child terrafiles will inherit and build this template.
+template "backend" {
+  // read_template is a custom function that parses up the directory tree,
+  // looking for a matching template file
+  contents = read_template("backend.tmpl")
+  // target is optional, and defaults to the template name with a "tp.tf" suffix
+  target = "backend.tp.tf"
+}
+
+// Templates can also embed the contents directly
+template "embedded" {
+  contents = <<EOL
+    // Template this
+  EOL
 }
 ```
 
 ### required_providers
 
-`required_providers` defines the required providers for a Terraform root module. It is built into a `terraform {}` block inside a `terraplate.tf` file.
+`required_providers` defines the required providers for a Terraform root module.
+It is built into a `terraform {}` block inside a `terraplate.tf` file.
 
 Example:
 

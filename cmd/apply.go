@@ -23,6 +23,8 @@ import (
 	"github.com/verifa/terraplate/runner"
 )
 
+var applyJobs int
+
 // applyCmd represents the apply command
 var applyCmd = &cobra.Command{
 	Use:   "apply",
@@ -33,10 +35,12 @@ var applyCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("parsing terraplate: %w", err)
 		}
-		return runner.Run(config, runner.RunApply(), runner.ExtraArgs(args))
+		return runner.Run(config, runner.RunApply(), runner.Jobs(applyJobs), runner.ExtraArgs(args))
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(applyCmd)
+
+	applyCmd.Flags().IntVarP(&applyJobs, "jobs", "j", runner.DefaultJobs, "Number of concurrent terraform jobs to run at one time")
 }

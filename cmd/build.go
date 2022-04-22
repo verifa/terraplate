@@ -41,7 +41,7 @@ templates and configurations detected.`,
 		}
 
 		if err := builder.Build(config); err != nil {
-			return fmt.Errorf("building terrplate: %w", err)
+			return fmt.Errorf("building terraplate: %w", err)
 		}
 
 		if doValidate {

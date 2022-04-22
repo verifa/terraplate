@@ -27,6 +27,7 @@ import (
 var (
 	runBuild bool
 	runInit  bool
+	planJobs int
 )
 
 // planCmd represents the plan command
@@ -41,11 +42,12 @@ var planCmd = &cobra.Command{
 		}
 		if runBuild {
 			if err := builder.Build(config); err != nil {
-				return fmt.Errorf("building terrplate: %w", err)
+				return fmt.Errorf("building terraplate: %w", err)
 			}
 		}
 		runOpts := []func(r *runner.TerraRun){
 			runner.RunPlan(),
+			runner.Jobs(planJobs),
 		}
 		if runInit {
 			runOpts = append(runOpts, runner.RunInit())
@@ -60,4 +62,5 @@ func init() {
 
 	planCmd.Flags().BoolVar(&runBuild, "build", false, "Run build process also")
 	planCmd.Flags().BoolVar(&runInit, "init", false, "Run terraform init also")
+	planCmd.Flags().IntVarP(&planJobs, "jobs", "j", runner.DefaultJobs, "Number of concurrent terraform jobs to run at one time")
 }

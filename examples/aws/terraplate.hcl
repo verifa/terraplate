@@ -1,3 +1,15 @@
+
+template "backend" {
+  contents = read_template("backend.tmpl")
+}
+
+template "providers" {
+  contents = read_template("providers.tmpl")
+}
+template "common" {
+  contents = read_template("common.tmpl")
+}
+
 variables {
   aws_region  = "eu-west-1"
   environment = "global"

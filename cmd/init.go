@@ -23,6 +23,8 @@ import (
 	"github.com/verifa/terraplate/runner"
 )
 
+var initJobs int
+
 // initCmd represents the init command
 var initCmd = &cobra.Command{
 	Use:   "init",
@@ -33,10 +35,12 @@ var initCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("parsing terraplate: %w", err)
 		}
-		return runner.Run(config, runner.RunInit(), runner.ExtraArgs(args))
+		return runner.Run(config, runner.RunInit(), runner.Jobs(initJobs), runner.ExtraArgs(args))
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(initCmd)
+
+	initCmd.Flags().IntVarP(&initJobs, "jobs", "j", runner.DefaultJobs, "Number of concurrent terraform jobs to run at one time")
 }

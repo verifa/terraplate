@@ -50,5 +50,5 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&config.ParserConfig.Chdir, "chdir", ".", "Switch to a different working directory before executing the given subcommand.")
+	rootCmd.PersistentFlags().StringVarP(&config.ParserConfig.Chdir, "chdir", "C", ".", "Switch to a different working directory before executing the given subcommand.")
 }

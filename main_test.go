@@ -22,6 +22,9 @@ func TestMain(t *testing.T) {
 			dir: "examples/simple/dev",
 		},
 		{
+			dir: "examples/complete",
+		},
+		{
 			dir:           "examples/aws",
 			skipTerraform: true, // would require aws auth
 		},
