@@ -34,7 +34,7 @@ Terraplate is designed to keep the configurations and backend DRY.
 Terraplate traverses up and down from the working directory detecting Terraplate files ("Terrafiles" for short), treating the Terrafiles without nested Terrafiles as [Root Modules](https://www.terraform.io/language/modules#the-root-module).
 
 Terraplate builds Terraform files based on your provided Terraform templates (using the Go Templating engine).
-Define your Terraform configs once, and use Go Templates to substitue the values based on the different root modules.
+Define your Terraform configs once, and use Go Templates to substitute the values based on the different root modules.
 
 The built files are completely normal Terraform files, that should be checked into Git and can be run either via the `terraform` CLI, [Terraform Cloud](https://www.terraform.io/cloud), or using the `terraplate` CLI.
 
@@ -66,7 +66,7 @@ Please check the [documentation](./DOCUMENTATION.md) for more details like insta
 
 This project is currently in **alpha**.
 
-It is being used in production, but the functionality may change and backwards compatability cannot be guaranteed at this time.
+It is being used in production, but the functionality may change and backwards compatibility cannot be guaranteed at this time.
 
 Terraplate does not have a cache, cleanup functionality or overwrite protection.
 It's quite dumb, by design, so please be careful that you do not overwrite existing files (use Git, wink wink) and name your template files with a suffix such as `.tp.tf` to add another layer of "protection".

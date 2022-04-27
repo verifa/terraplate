@@ -70,7 +70,7 @@ Use this in your Terraform files as a normal Terraform variable, e.g. `${var.env
 `values` block defines a map of values that are passed to the Go template executor when running the Terraplate build process.
 
 Use this instead of `variables` if you do not want to expose values as Terraform variables but only want to use them during the build process.
-A prime example of this, is for configuring the Terraform backend because variables cannot be used for this.
+A prime example of this is configuring the Terraform backend because variables cannot be used for this.
 
 Example:
 
