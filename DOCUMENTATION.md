@@ -135,10 +135,12 @@ template "ignore" {
 Example:
 
 ```hcl
-required_providers {
-  local = {
-    source  = "hashicorp/local"
-    version = "2.1.0"
+terraform {
+  required_providers {
+    local = {
+      source  = "hashicorp/local"
+      version = "2.1.0"
+    }
   }
 }
 ```
