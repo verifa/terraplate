@@ -47,6 +47,10 @@ the build command, for example.`,
 			for name := range tf.BuildVariables() {
 				fmt.Println(" -", name)
 			}
+			fmt.Println("Locals:")
+			for name := range tf.BuildLocals() {
+				fmt.Println(" -", name)
+			}
 			buildValues, err := tf.BuildValues()
 			if err != nil {
 				return fmt.Errorf("getting build values for %s: %w", tf.Path, err)
