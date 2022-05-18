@@ -130,26 +130,40 @@ func validateCmd(run *TerraRun, tf *parser.Terrafile) error {
 }
 
 func planCmd(run *TerraRun, tf *parser.Terrafile) error {
+	plan := tf.ExecBlock.PlanBlock
+
 	var args []string
 	args = append(args,
 		string(terraPlan),
-		"-lock=true",
-		"-input=false",
-		"-out=tfplan",
+		fmt.Sprintf("-lock=%v", plan.Lock),
+		fmt.Sprintf("-input=%v", plan.Input),
 	)
+	if !plan.SkipOut {
+		args = append(args,
+			"-out="+plan.Out,
+		)
+	}
+	args = append(args, tf.ExecBlock.ExtraArgs...)
 	args = append(args, run.extraArgs...)
 	return runCmd(tf, args)
 }
 
 func applyCmd(run *TerraRun, tf *parser.Terrafile) error {
+	plan := tf.ExecBlock.PlanBlock
+
 	var args []string
 	args = append(args,
 		string(terraApply),
-		"-lock=true",
-		"-input=false",
-		"tfplan",
+		fmt.Sprintf("-lock=%v", plan.Lock),
+		fmt.Sprintf("-input=%v", plan.Input),
 	)
+	args = append(args, tf.ExecBlock.ExtraArgs...)
 	args = append(args, run.extraArgs...)
+
+	if !plan.SkipOut {
+		args = append(args, plan.Out)
+	}
+
 	return runCmd(tf, args)
 }
 

@@ -13,6 +13,19 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
+// defaultTerrafile sets default values for a Terrafile that are used when
+// parsing a new Terrafile
+var defaultTerrafile = Terrafile{
+	ExecBlock: &ExecBlock{
+		PlanBlock: &ExecPlanBlock{
+			Input:   false,
+			Lock:    true,
+			Out:     "tfplan",
+			SkipOut: false,
+		},
+	},
+}
+
 type Terrafile struct {
 	Path string `hcl:"-"`
 	Dir  string `hcl:"-"`
@@ -26,6 +39,8 @@ type Terrafile struct {
 
 	TerraformBlock *TerraformBlock `hcl:"terraform,block"`
 
+	ExecBlock *ExecBlock `hcl:"exec,block"`
+
 	// Variables map[string]cty.Value `hcl:",remain"`
 	// Ancestor defines any parent/ancestor Terrafiles that this Terrafile
 	// should inherit from
@@ -36,6 +51,7 @@ type TerraformBlock struct {
 	RequiredVersion   string                  `hcl:"required_version,optional"`
 	RequiredProviders *TerraRequiredProviders `hcl:"required_providers,block"`
 }
+
 type TerraLocals struct {
 	Locals map[string]cty.Value `hcl:",remain"`
 }
@@ -91,6 +107,10 @@ func ParseTerrafile(file string) (*Terrafile, error) {
 
 	if tmplErr := parseTemplates(&terrafile, tmplDir); tmplErr != nil {
 		return nil, fmt.Errorf("parsing templates: %w", tmplErr)
+	}
+
+	if err := mergo.Merge(&terrafile, defaultTerrafile); err != nil {
+		return nil, fmt.Errorf("settings terrafile defaults for %s: %w", file, err)
 	}
 
 	return &terrafile, nil
