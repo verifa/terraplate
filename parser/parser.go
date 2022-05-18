@@ -55,8 +55,9 @@ func walkDownDirectory(dir string, ancestor *Terrafile) ([]*Terrafile, error) {
 		terrafile  *Terrafile
 		subDirs    []string
 	)
+
 	// Skip the .terraform directories
-	if dir == ".terraform" {
+	if filepath.Base(dir) == ".terraform" {
 		return terrafiles, nil
 	}
 	entries, readErr := os.ReadDir(dir)
