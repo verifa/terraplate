@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -42,6 +43,11 @@ func Parse(config *Config) (*TerraConfig, error) {
 	terrafiles, walkErr := walkDownDirectory(config.Chdir, ancestor)
 	if walkErr != nil {
 		return nil, fmt.Errorf("looking for terraplate.hcl files: %w", walkErr)
+	}
+
+	// Check if any terrafiles were found. If not, return an error
+	if len(terrafiles) == 0 {
+		return nil, errors.New("no terraplate files found")
 	}
 
 	return &TerraConfig{
