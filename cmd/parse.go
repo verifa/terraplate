@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/verifa/terraplate/parser"
@@ -40,23 +39,19 @@ the build command, for example.`,
 			fmt.Println("Root Module:", tf.Path)
 
 			fmt.Println("Templates:")
-			for _, tmpl := range tf.BuildTemplates() {
-				fmt.Printf(" - %s: %s --> %s\n", tmpl.Name, strings.Join(tmpl.SourceFiles(), ","), tmpl.BuildTarget())
+			for _, tmpl := range tf.Templates {
+				fmt.Printf(" - %s --> %s\n", tmpl.Name, tmpl.Target)
 			}
 			fmt.Println("Variables:")
-			for name := range tf.BuildVariables() {
+			for name := range tf.Variables() {
 				fmt.Println(" -", name)
 			}
 			fmt.Println("Locals:")
-			for name := range tf.BuildLocals() {
+			for name := range tf.Locals() {
 				fmt.Println(" -", name)
 			}
-			buildValues, err := tf.BuildValues()
-			if err != nil {
-				return fmt.Errorf("getting build values for %s: %w", tf.Path, err)
-			}
 			fmt.Println("Values:")
-			for name := range buildValues {
+			for name := range tf.Values() {
 				fmt.Println(" -", name)
 			}
 			fmt.Println("")
@@ -68,14 +63,4 @@ the build command, for example.`,
 
 func init() {
 	rootCmd.AddCommand(parseCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// parseCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// parseCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

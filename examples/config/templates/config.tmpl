@@ -1,7 +1,7 @@
 
 locals {
   # Read the root config file
-  config = yamldecode(file("{{ .Root }}/config.yaml"))
+  config = yamldecode(file("{{ .RootDir }}/config.yaml"))
   # Create the cluster config for a specific cluster based on name and environment
   cluster_config = merge(
     # Set any cluster defaults

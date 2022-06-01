@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/remeh/sizedwaitgroup"
 	"github.com/verifa/terraplate/parser"
 )
@@ -16,17 +17,20 @@ const (
 	terraInit     terraCmd = "init"
 	terraPlan     terraCmd = "plan"
 	terraApply    terraCmd = "apply"
+
+	DefaultJobs = 1
 )
 
 func Run(config *parser.TerraConfig, opts ...func(r *TerraRun)) error {
 	// Initialise TerraRun with defaults
 	run := TerraRun{
-		jobs: 1,
+		jobs: DefaultJobs,
 	}
 	for _, opt := range opts {
 		opt(&run)
 	}
 
+	var errors error
 	// Start terraform runs in different root modules based on number of concurrent
 	// jobs that are allowed
 	swg := sizedwaitgroup.New(run.jobs)
@@ -36,12 +40,20 @@ func Run(config *parser.TerraConfig, opts ...func(r *TerraRun)) error {
 
 		go func() {
 			defer swg.Done()
-			runCmds(&run, tf)
+			if err := runCmds(&run, tf); err != nil {
+				errors = multierror.Append(errors, err)
+			}
 		}()
 	}
 	swg.Wait()
 
-	return nil
+	return errors
+}
+
+func Jobs(jobs int) func(r *TerraRun) {
+	return func(r *TerraRun) {
+		r.jobs = jobs
+	}
 }
 
 func RunValidate() func(r *TerraRun) {
@@ -87,6 +99,13 @@ type TerraRun struct {
 }
 
 func runCmds(run *TerraRun, tf *parser.Terrafile) error {
+	// Check if root module should be skipped or not
+	if tf.ExecBlock.Skip {
+		fmt.Println("")
+		fmt.Println("Skipping runner for", tf.Dir)
+		fmt.Println("")
+		return nil
+	}
 	fmt.Println("")
 	fmt.Println("##################################")
 	fmt.Println("Calling Runner in", tf.Dir)
@@ -171,34 +190,6 @@ func runCmd(tf *parser.Terrafile, args []string) error {
 	args = append(tfArgs(tf), args...)
 	execCmd := exec.Command(terraExe, args...)
 	fmt.Printf("Executing:\n%s\n\n", execCmd.String())
-	// stdout, err := execCmd.StdoutPipe()
-	// if err != nil {
-	// 	return fmt.Errorf("stdout pipe: %w", err)
-	// }
-	// var stderr bytes.Buffer
-	// execCmd.Stderr = &stderr
-	// // stderr, err := execCmd.StderrPipe()
-	// // if err != nil {
-	// // 	return fmt.Errorf("stderr pipe: %w", err)
-	// // }
-	// if startErr := execCmd.Start(); startErr != nil {
-	// 	return fmt.Errorf("starting command: %w", err)
-	// }
-
-	// scanner := bufio.NewScanner(stdout)
-	// scanner.Split(bufio.ScanWords)
-	// for scanner.Scan() {
-	// 	m := scanner.Text()
-	// 	fmt.Println(m)
-	// }
-
-	// if waitErr := execCmd.Wait(); waitErr != nil {
-	// 	return fmt.Errorf("waiting for command: %w", err)
-	// }
-
-	// if stderr.Len() > 0 {
-	// 	fmt.Printf("%s\n", stderr.Bytes())
-	// }
 
 	out, runErr := execCmd.CombinedOutput()
 	if runErr != nil {

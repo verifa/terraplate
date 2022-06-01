@@ -1,4 +1,12 @@
 
+template "cluster" {
+  contents = read_template("cluster.tmpl")
+}
+
+template "config" {
+  contents = read_template("config.tmpl")
+}
+
 values {
   tfstate_file = "terraform.tfstate"
 }

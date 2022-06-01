@@ -1,3 +1,3 @@
 variables {
-  environment = "dev"
+  environment = "prod"
 }

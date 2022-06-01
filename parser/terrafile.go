@@ -3,9 +3,7 @@ package parser
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/hcl/v2/hclsimple"
 	"github.com/imdario/mergo"
@@ -16,6 +14,7 @@ import (
 // defaultTerrafile sets default values for a Terrafile that are used when
 // parsing a new Terrafile
 var defaultTerrafile = Terrafile{
+	// BuildBlock: &BuildBlock{},
 	ExecBlock: &ExecBlock{
 		PlanBlock: &ExecPlanBlock{
 			Input:   false,
@@ -24,32 +23,71 @@ var defaultTerrafile = Terrafile{
 			SkipOut: false,
 		},
 	},
+	TerraformBlock: &TerraformBlock{
+		RequiredProvidersBlock: &TerraRequiredProviders{
+			RequiredProviders: make(map[string]RequiredProvider),
+		},
+	},
 }
 
 type Terrafile struct {
-	Path string `hcl:"-"`
-	Dir  string `hcl:"-"`
+	// Path
+	Path string
+	Dir  string
 	// IsRoot tells whether this terrafile is for a root module
-	IsRoot bool `hcl:"-"`
+	IsRoot bool
 	// Templates defines the list of templates that this Terrafile defines
 	Templates []*TerraTemplate `hcl:"template,block"`
-	Locals    *TerraLocals     `hcl:"locals,block"`
-	Variables *TerraVariables  `hcl:"variables,block"`
-	Values    *TerraValues     `hcl:"values,block"`
+
+	LocalsBlock    *TerraLocals    `hcl:"locals,block"`
+	VariablesBlock *TerraVariables `hcl:"variables,block"`
+	ValuesBlock    *TerraValues    `hcl:"values,block"`
 
 	TerraformBlock *TerraformBlock `hcl:"terraform,block"`
 
+	// BuildBlock *BuildBlock `hcl:"build,block"`
 	ExecBlock *ExecBlock `hcl:"exec,block"`
 
-	// Variables map[string]cty.Value `hcl:",remain"`
 	// Ancestor defines any parent/ancestor Terrafiles that this Terrafile
 	// should inherit from
-	Ancestor *Terrafile `hcl:"-"`
+	Ancestor *Terrafile
+
+	// Children contains any child Terrafiles to this Terrafile
+	Children []*Terrafile
 }
 
+// TerraTemplate defines the template{} block within a Terrafile
+type TerraTemplate struct {
+	Name     string `hcl:",label"`
+	Contents string `hcl:"contents,attr"`
+	// Target defines the target file to generate.
+	// Defaults to the Name of the template with a ".tp.tf" extension
+	Target string `hcl:"target,optional"`
+}
+
+// TerraformBlock defines the terraform{} block within a Terrafile
 type TerraformBlock struct {
-	RequiredVersion   string                  `hcl:"required_version,optional"`
-	RequiredProviders *TerraRequiredProviders `hcl:"required_providers,block"`
+	RequiredVersion        string                  `hcl:"required_version,optional"`
+	RequiredProvidersBlock *TerraRequiredProviders `hcl:"required_providers,block"`
+}
+
+// RequiredProviders returns the map of terraform required_providers, or nil
+func (tb *TerraformBlock) RequiredProviders() map[string]RequiredProvider {
+	if tb.RequiredProvidersBlock == nil {
+		return nil
+	}
+	return tb.RequiredProvidersBlock.RequiredProviders
+}
+
+// TerraRequiredProviders defines the map of required_providers
+type TerraRequiredProviders struct {
+	RequiredProviders map[string]RequiredProvider `hcl:",remain"`
+}
+
+// RequiredProvider defines the body of required_providers
+type RequiredProvider struct {
+	Source  string `hcl:"source,attr" cty:"source"`
+	Version string `hcl:"version,attr" cty:"version"`
 }
 
 type TerraLocals struct {
@@ -64,141 +102,48 @@ type TerraVariables struct {
 	Variables map[string]cty.Value `hcl:",remain"`
 }
 
-type TerraRequiredProviders struct {
-	RequiredProviders map[string]RequiredProvider `hcl:",remain"`
-}
+// parseTerrafile parses the terrafile given by the input string and returns
+// the Terrafile or an error if something went wrong
+func parseTerrafile(file string) (*Terrafile, error) {
 
-type RequiredProvider struct {
-	Source  string `hcl:"source,attr" cty:"source"`
-	Version string `hcl:"version,attr" cty:"version"`
-}
-
-type TerraTemplate struct {
-	Name string `hcl:",label"`
-	// Source defines the source template filename
-	Source string `hcl:"source,optional"`
-	// Target defines the target file to generate.
-	// Defaults to Source and removing any .tmpl extensions
-	Target string `hcl:"target,optional"`
-	// Build specifies whether this should be built or not (defaults to true)
-	Build *bool `hcl:"build,optional"`
-
-	// TemplateDir is the directory containing the templates.
-	// Joining the paths TemplateDir and Source should point to a valid template
-	TemplateDir string
-	// Ancestors defines any parent/ancestor templates with the same name
-	// that should be merged/overwritten
-	Ancestors []*TerraTemplate
-}
-
-func ParseTerrafile(file string) (*Terrafile, error) {
+	terrafileDir := filepath.Dir(file)
 
 	var terrafile Terrafile
-	if err := hclsimple.DecodeFile(file, nil, &terrafile); err != nil {
+	if err := hclsimple.DecodeFile(file, evalCtx(terrafileDir), &terrafile); err != nil {
 		return nil, fmt.Errorf("decoding terraplate file %s: %w", file, err)
 	}
 	terrafile.Path = file
-	terrafile.Dir = filepath.Dir(file)
+	terrafile.Dir = terrafileDir
 	// Set the default to be a root module. If an ancestor is added it is set to false
 	terrafile.IsRoot = true
 
-	// Check if there's a template directory
-	tmplDir := filepath.Join(filepath.Dir(file), "templates")
-
-	if tmplErr := parseTemplates(&terrafile, tmplDir); tmplErr != nil {
-		return nil, fmt.Errorf("parsing templates: %w", tmplErr)
-	}
-
-	if err := mergo.Merge(&terrafile, defaultTerrafile); err != nil {
-		return nil, fmt.Errorf("settings terrafile defaults for %s: %w", file, err)
+	for _, tmpl := range terrafile.Templates {
+		// Set the defaults for defined templates
+		if tmpl.Target == "" {
+			tmpl.Target = tmpl.Name + ".tp.tf"
+		}
 	}
 
 	return &terrafile, nil
 }
 
-func parseTemplates(terrafile *Terrafile, dir string) error {
-
-	// First handle the templates defined in a Terrafile, by setting defaults
-	// and trimming suffixes, etc.
-	var tmplSourceMap = make(map[string]*TerraTemplate)
-	var tmplNameMap = make(map[string]*TerraTemplate)
-	var defaultBuild = true
-	for _, tmpl := range terrafile.Templates {
-		// Trim suffix, if exists
-		tmpl.Name = strings.TrimSuffix(tmpl.Name, ".tp")
-		// Set the defaults for defined templates
-		if tmpl.Build == nil {
-			tmpl.Build = &defaultBuild
+// traverseChildren goes down the tree of terrafiles calling the visit function
+// on each terrafile in the path
+func (t *Terrafile) traverseChildren(visit func(parent *Terrafile, tf *Terrafile) error) error {
+	for _, child := range t.Children {
+		if err := visit(t, child); err != nil {
+			return err
 		}
-		if tmpl.Source != "" {
-			tmplSourceMap[tmpl.Source] = tmpl
-		}
-		tmplNameMap[tmpl.Name] = tmpl
-		tmpl.TemplateDir = dir
-	}
-
-	// Next check if there is a templates directory. It's not an error if not.
-	entries, readErr := os.ReadDir(dir)
-	if readErr != nil {
-		if os.IsNotExist(readErr) {
-			// This is fine, and there's nothing to do
-			return nil
-		}
-		return fmt.Errorf("reading templates directory %s: %w", dir, readErr)
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			// Skip directories
-			continue
-		}
-		if strings.HasSuffix(entry.Name(), ".tf") || strings.HasSuffix(entry.Name(), ".tf.tmpl") {
-			// Trim the tmpl suffix to get the end terraform filename
-			tfFile := strings.TrimSuffix(entry.Name(), ".tmpl")
-			defaultName := strings.TrimSuffix(tfFile, ".tf")
-			defaultName = strings.TrimSuffix(defaultName, ".tp")
-			// Check if the template was defined in the terraplate configuration.
-			// This can be done either by source file matching or the default
-			// name matching
-			if tmpl, ok := tmplNameMap[defaultName]; ok {
-				if tmpl.Source == entry.Name() {
-					if tmpl.Target == "" {
-						tmpl.Target = tfFile
-					}
-					continue
-				}
-				// If no source, set it
-				if tmpl.Source == "" {
-					tmpl.Source = entry.Name()
-					if tmpl.Target == "" {
-						tmpl.Target = tfFile
-					}
-					continue
-				}
-				// Otherwise the names match but the source is different.
-				// Probably an error, inform the user
-				return fmt.Errorf("template with same name as file detected but the sources do not match for template %s", tmpl.Name)
-			}
-			if _, ok := tmplSourceMap[entry.Name()]; ok {
-				// If the default name was not the same but the sources match, then reuse the template
-				continue
-			}
-			// If the detected terraform file was not declared in the terraplate configuration,
-			// create the template automatically
-			var tmpl TerraTemplate
-			tmpl.Name = defaultName
-			tmpl.Source = entry.Name()
-			tmpl.Target = tfFile
-			tmpl.TemplateDir = dir
-			tmpl.Build = &defaultBuild
-
-			terrafile.Templates = append(terrafile.Templates, &tmpl)
+		if err := child.traverseChildren(visit); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-func (t *Terrafile) TraverseAncestors(visit func(ancestor *Terrafile) error) error {
+// traverseAncestors goes up the tree of ancestors calling the visit function
+// on each terrafile in the path
+func (t *Terrafile) traverseAncestors(visit func(ancestor *Terrafile) error) error {
 	// Recurse through all ancestors and add the templates to the template map
 	var ancestor = t.Ancestor
 	for ancestor != nil {
@@ -211,19 +156,52 @@ func (t *Terrafile) TraverseAncestors(visit func(ancestor *Terrafile) error) err
 	return nil
 }
 
-// RootAncestor returns the upmost (root) ancestor in the hierarchy
-func (t *Terrafile) RootAncestor() *Terrafile {
+// traverseAncestorsReverse goes down the tree of ancestors calling the visit function
+// on each terrafile in the path
+func (t *Terrafile) traverseAncestorsReverse(visit func(ancestor *Terrafile) error) error {
+	// Traverse up the tree first and make a reversed list of the terrafiles in
+	// the path, so that we can iterate over the terrafiles in reverse order
+	var path = make([]*Terrafile, 0)
+	t.traverseAncestors(func(ancestor *Terrafile) error {
+		path = append([]*Terrafile{ancestor}, path...)
+		return nil
+	})
+	for _, tf := range path {
+		if err := visit(tf); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// rootAncestor returns the upmost (root) ancestor in the hierarchy
+func (t *Terrafile) rootAncestor() *Terrafile {
 	tf := t
-	t.TraverseAncestors(func(ancestor *Terrafile) error {
+	t.traverseAncestors(func(ancestor *Terrafile) error {
 		tf = ancestor
 		return nil
 	})
 	return tf
 }
 
-// Returns the absolute path of the root Terrafile
-func (t *Terrafile) RootPath() string {
-	root := t.RootAncestor()
+// rootModules returns the root modules that are children of this terrafile
+func (t *Terrafile) rootModules() []*Terrafile {
+	var terrafiles = make([]*Terrafile, 0)
+	if t.IsRoot {
+		terrafiles = append(terrafiles, t)
+	}
+	t.traverseChildren(func(parent *Terrafile, child *Terrafile) error {
+		if child.IsRoot {
+			terrafiles = append(terrafiles, child)
+		}
+		return nil
+	})
+	return terrafiles
+}
+
+// RootDir returns the absolute path of the root Terrafile
+func (t *Terrafile) RootDir() string {
+	root := t.rootAncestor()
 	rootAbsDir, absErr := filepath.Abs(root.Dir)
 	if absErr != nil {
 		panic(fmt.Sprintf("cannot get absolute path to Terrafile %s: %s", root.Path, absErr.Error()))
@@ -231,9 +209,9 @@ func (t *Terrafile) RootPath() string {
 	return rootAbsDir
 }
 
-// RelativePath gets the relative path from the Root Ancestor Terrafile to this Terrafile
-func (t *Terrafile) RelativePath() string {
-	root := t.RootAncestor()
+// RelativeDir gets the relative directory from the Root Terrafile to this Terrafile
+func (t *Terrafile) RelativeDir() string {
+	root := t.rootAncestor()
 	rootAbsDir, absErr := filepath.Abs(root.Dir)
 	if absErr != nil {
 		panic(fmt.Sprintf("cannot get absolute path to Terrafile %s: %s", root.Path, absErr.Error()))
@@ -249,212 +227,275 @@ func (t *Terrafile) RelativePath() string {
 	return relPath
 }
 
-// HasSource returns true if the template has a source (or an ancestor has one)
-// and false if not. In which case, there's likely something wrong
-func (t *TerraTemplate) HasSource() bool {
-	if t.Source != "" {
-		return true
+// RelativePath gets the relative directory from the Root Terrafile to this Terrafile
+func (t *Terrafile) RelativePath() string {
+	root := t.rootAncestor()
+	rootAbsDir, absErr := filepath.Abs(root.Dir)
+	if absErr != nil {
+		panic(fmt.Sprintf("cannot get absolute path to Terrafile %s: %s", root.Path, absErr.Error()))
 	}
-	for _, an := range t.Ancestors {
-		if an.Source != "" {
-			return true
-		}
+	tfAbsPath, absErr := filepath.Abs(t.Path)
+	if absErr != nil {
+		panic(fmt.Sprintf("cannot get absolute path to Terrafile %s: %s", t.Path, absErr.Error()))
 	}
-	return false
+	relPath, relErr := filepath.Rel(rootAbsDir, tfAbsPath)
+	if relErr != nil {
+		panic(fmt.Sprintf("cannot get relative path from ancestor Terrafile %s to %s: %s", root.Path, t.Path, relErr.Error()))
+	}
+	return relPath
 }
 
-// SourceFiles returns the source files for a template and it's ancestors, starting
-// with the highest ancestor, and ending with the template itself (if it has a source)
-func (t *TerraTemplate) SourceFiles() []string {
-	var sourceFiles []string
-	// Iterate in reverse order
-	for i := len(t.Ancestors) - 1; i >= 0; i-- {
-		source := t.Ancestors[i].Source
-		if source != "" {
-			sourceFiles = append(sourceFiles, filepath.Join(t.Ancestors[i].TemplateDir, source))
-		}
+// mergeTerrafiles will merge a terrafile and it's direct ancestor.
+// We cannot simply merge all fields as templates (for example) are treated a bit
+// special
+func (t *Terrafile) mergeTerrafile(parent *Terrafile) error {
+
+	t.mergeLocals(parent)
+	t.mergeVariables(parent)
+	t.mergeValues(parent)
+	t.mergeTemplates(parent)
+	t.mergeTerraformBlock(parent)
+	// t.mergeBuildBlock(parent)
+
+	if mergeErr := t.mergeExecBlock(parent); mergeErr != nil {
+		return mergeErr
 	}
-	if t.Source != "" {
-		sourceFiles = append(sourceFiles, filepath.Join(t.TemplateDir, t.Source))
-	}
-	return sourceFiles
+
+	return nil
 }
 
-func (t *TerraTemplate) BuildTarget() string {
-	if t.Target != "" {
-		return t.Target
+func (t *Terrafile) mergeExecBlock(parent *Terrafile) error {
+	// If terrafile's exec block is nil, we can simply inherit the ancestor's one
+	if t.ExecBlock == nil {
+		t.ExecBlock = &ExecBlock{}
 	}
-	for _, an := range t.Ancestors {
-		if an.Target != "" {
-			return an.Target
-		}
+	// Merge ExecBlock
+	if err := mergo.Merge(t.ExecBlock, parent.ExecBlock); err != nil {
+		return fmt.Errorf("merging exec{} block: %w", err)
 	}
-	return ""
+	return nil
 }
 
-func (t *Terrafile) BuildLocals() map[string]cty.Value {
-	var buildLocals map[string]cty.Value
-	if t.Locals != nil {
-		buildLocals = t.Locals.Locals
-	} else {
-		buildLocals = make(map[string]cty.Value)
+// func (t *Terrafile) mergeBuildBlock(parent *Terrafile) {
+// 	if t.BuildBlock == nil {
+// 		t.BuildBlock = &BuildBlock{}
+// 	}
+// 	for _, parentTemplate := range parent.BuildBlock.Templates {
+// 		var templateMatch bool
+// 		for _, tmpl := range t.BuildBlock.Templates {
+// 			if tmpl == parentTemplate {
+// 				templateMatch = true
+// 				break
+// 			}
+// 		}
+// 		if templateMatch {
+// 			continue
+// 		}
+// 		t.BuildBlock.Templates = append(t.BuildBlock.Templates, parentTemplate)
+// 	}
+// 	// Let's validate that all the build
+// 	for _, tmpl := range t.BuildBlock.Templates {
+
+// 	}
+// }
+
+func (t *Terrafile) mergeLocals(parent *Terrafile) {
+	tfLocals := t.Locals()
+	if t.Locals() == nil {
+		tfLocals = make(map[string]cty.Value)
 	}
-	if t.Ancestor == nil {
-		return buildLocals
-	}
-	for name, value := range t.Ancestor.BuildLocals() {
-		if _, ok := buildLocals[name]; !ok {
-			buildLocals[name] = value
+	for name, value := range parent.Locals() {
+		if _, ok := tfLocals[name]; !ok {
+			tfLocals[name] = value
 		}
 	}
-	return buildLocals
+	t.LocalsBlock = &TerraLocals{
+		Locals: tfLocals,
+	}
+
 }
 
-func (t *Terrafile) BuildLocalsAsGo() (map[string]interface{}, error) {
-	buildLocals, err := fromCtyValues(t.BuildLocals())
+func (t *Terrafile) mergeVariables(parent *Terrafile) {
+	tfVars := t.Variables()
+	if t.Variables() == nil {
+		tfVars = make(map[string]cty.Value)
+	}
+	for name, value := range parent.Variables() {
+		if _, ok := tfVars[name]; !ok {
+			tfVars[name] = value
+		}
+	}
+	t.VariablesBlock = &TerraVariables{
+		Variables: tfVars,
+	}
+}
+
+func (t *Terrafile) mergeValues(parent *Terrafile) {
+	tfValues := t.Values()
+	if t.Values() == nil {
+		tfValues = make(map[string]cty.Value)
+	}
+	for name, value := range parent.Values() {
+		if _, ok := tfValues[name]; !ok {
+			tfValues[name] = value
+		}
+	}
+	t.ValuesBlock = &TerraValues{
+		Values: tfValues,
+	}
+}
+
+// mergeTemplates merges templates from a parent to a terrafile.
+// Templates are matched by the name, and if a parent template does not match
+// a child template, it should be added to the list (i.e. child templates
+// override parent templates)
+func (t *Terrafile) mergeTemplates(parent *Terrafile) {
+	var mergeTemplates = make([]*TerraTemplate, 0)
+	for _, parentTemplate := range parent.Templates {
+		var templateMatch bool
+		for _, childTemplate := range t.Templates {
+			if parentTemplate.Name == childTemplate.Name {
+				templateMatch = true
+				break
+			}
+		}
+
+		if templateMatch {
+			continue
+		}
+		mergeTemplates = append(mergeTemplates, parentTemplate)
+	}
+	t.Templates = append(t.Templates, mergeTemplates...)
+}
+
+func (t *Terrafile) mergeTerraformBlock(parent *Terrafile) {
+	if t.TerraformBlock == nil {
+		t.TerraformBlock = &TerraformBlock{}
+	}
+	block := t.TerraformBlock
+
+	if block.RequiredVersion == "" {
+		block.RequiredVersion = parent.TerraformBlock.RequiredVersion
+	}
+	var requiredProviders = block.RequiredProviders()
+	if requiredProviders == nil {
+		requiredProviders = make(map[string]RequiredProvider)
+	}
+	for name, value := range parent.TerraformBlock.RequiredProviders() {
+		if _, ok := requiredProviders[name]; !ok {
+			requiredProviders[name] = value
+		}
+	}
+	block.RequiredProvidersBlock = &TerraRequiredProviders{
+		RequiredProviders: requiredProviders,
+	}
+}
+
+// BuildTemplates returns the templates that should be built
+// func (t *Terrafile) BuildTemplates() []*TerraTemplate {
+// 	var templates = make([]*TerraTemplate, 0)
+// 	for _, tmpl := range t.Templates {
+// 		if !*tmpl.Build {
+// 			var buildTemplate = false
+// 			for _, bt := range t.BuildBlock.Templates {
+// 				if tmpl.Name == bt {
+// 					buildTemplate = true
+// 					break
+// 				}
+// 			}
+// 			if !buildTemplate {
+// 				continue
+// 			}
+// 		}
+// 		templates = append(templates, tmpl)
+// 	}
+// 	return templates
+// }
+
+func (t *Terrafile) Locals() map[string]cty.Value {
+	if t.LocalsBlock == nil {
+		return nil
+	}
+	return t.LocalsBlock.Locals
+}
+
+func (t *Terrafile) Variables() map[string]cty.Value {
+	if t.VariablesBlock == nil {
+		return nil
+	}
+	return t.VariablesBlock.Variables
+}
+
+func (t *Terrafile) Values() map[string]cty.Value {
+	if t.ValuesBlock == nil {
+		return nil
+	}
+	return t.ValuesBlock.Values
+}
+
+func (t *Terrafile) LocalsAsGo() (map[string]interface{}, error) {
+	locals, err := fromCtyValues(t.Locals())
 	if err != nil {
 		return nil, fmt.Errorf("converting Cty locals{} values into Go values: %w", err)
 	}
-	return buildLocals, err
+	return locals, err
 }
 
-func (t *Terrafile) BuildVariables() map[string]cty.Value {
-	var buildVars map[string]cty.Value
-	if t.Variables != nil {
-		buildVars = t.Variables.Variables
-	} else {
-		buildVars = make(map[string]cty.Value)
-	}
-	if t.Ancestor == nil {
-		return buildVars
-	}
-	for name, value := range t.Ancestor.BuildVariables() {
-		if _, ok := buildVars[name]; !ok {
-			buildVars[name] = value
-		}
-	}
-	return buildVars
-}
-
-func (t *Terrafile) BuildVariablesAsGo() (map[string]interface{}, error) {
-	buildVars, err := fromCtyValues(t.BuildVariables())
+func (t *Terrafile) VariablesAsGo() (map[string]interface{}, error) {
+	vars, err := fromCtyValues(t.Variables())
 	if err != nil {
 		return nil, fmt.Errorf("converting Cty variables{} values into Go values: %w", err)
 	}
-	return buildVars, err
+	return vars, err
 }
 
-func (t *Terrafile) BuildValues() (map[string]interface{}, error) {
-	var buildValues map[string]interface{}
-	if t.Values != nil {
-		var err error
-		buildValues, err = fromCtyValues(t.Values.Values)
-		if err != nil {
-			return nil, fmt.Errorf("converting Cty values into Go values: %w", err)
-		}
-	} else {
-		buildValues = make(map[string]interface{})
-	}
-	if t.Ancestor == nil {
-		return buildValues, nil
-	}
-	anBuildValues, err := t.Ancestor.BuildValues()
+func (t *Terrafile) ValuesAsGo() (map[string]interface{}, error) {
+	values, err := fromCtyValues(t.Values())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("converting Cty values{} values into Go values: %w", err)
 	}
-	for name, anVal := range anBuildValues {
-		if curVal, ok := buildValues[name]; ok {
-			// If curVal is a map, then we should merge it, if the ancestor value
-			// is also a map
-			if dstMap, ok := curVal.(map[string]interface{}); ok {
-				if srcMap, ok := anVal.(map[string]interface{}); ok {
-					if mergeErr := mergo.Merge(&dstMap, srcMap); mergeErr != nil {
-						return nil, fmt.Errorf("merging values for terrafile %s: %w", t.Path, mergeErr)
-					}
-					buildValues[name] = dstMap
-					continue
-				}
-			}
-		} else {
-			// If it did not merge, then simply overwrite
-			buildValues[name] = anVal
-		}
-	}
-	return buildValues, nil
+	return values, err
+
 }
 
-func (t *Terrafile) BuildRequiredProviders() map[string]RequiredProvider {
-	var tfBlock TerraformBlock
-	if t.TerraformBlock != nil {
-		tfBlock = *t.TerraformBlock
-	}
+// func (t *Terrafile) BuildRequiredProviders() map[string]RequiredProvider {
+// 	var tfBlock TerraformBlock
+// 	if t.TerraformBlock != nil {
+// 		tfBlock = *t.TerraformBlock
+// 	}
 
-	var reqProv map[string]RequiredProvider
-	if tfBlock.RequiredProviders != nil {
-		reqProv = tfBlock.RequiredProviders.RequiredProviders
-	} else {
-		reqProv = make(map[string]RequiredProvider)
-	}
-	if t.Ancestor == nil {
-		return reqProv
-	}
-	for name, value := range t.Ancestor.BuildRequiredProviders() {
-		if _, ok := reqProv[name]; !ok {
-			reqProv[name] = value
-		}
-	}
-	return reqProv
-}
+// 	var reqProv map[string]RequiredProvider
+// 	if tfBlock.RequiredProviders != nil {
+// 		reqProv = tfBlock.RequiredProviders.RequiredProviders
+// 	} else {
+// 		reqProv = make(map[string]RequiredProvider)
+// 	}
+// 	if t.Ancestor == nil {
+// 		return reqProv
+// 	}
+// 	for name, value := range t.Ancestor.BuildRequiredProviders() {
+// 		if _, ok := reqProv[name]; !ok {
+// 			reqProv[name] = value
+// 		}
+// 	}
+// 	return reqProv
+// }
 
-func (t *Terrafile) BuildRequiredVersion() string {
-	var requiredVersion string
-	if t.TerraformBlock != nil {
-		requiredVersion = t.TerraformBlock.RequiredVersion
-	}
-	t.TraverseAncestors(func(ancestor *Terrafile) error {
-		if requiredVersion == "" {
-			if ancestor.TerraformBlock != nil && ancestor.TerraformBlock.RequiredVersion != "" {
-				requiredVersion = ancestor.TerraformBlock.RequiredVersion
-			}
-		}
-		return nil
-	})
-	return requiredVersion
-}
-
-func (t *Terrafile) BuildTemplates() []TerraTemplate {
-	var tmplMap = make(map[string]TerraTemplate)
-
-	for _, tmpl := range t.Templates {
-		tmplMap[tmpl.Name] = *tmpl
-	}
-
-	// Recurse through all ancestors and add the templates to the template map
-	t.TraverseAncestors(func(ancestor *Terrafile) error {
-		for _, tmpl := range ancestor.Templates {
-			t, ok := tmplMap[tmpl.Name]
-			if ok {
-				t.Ancestors = append(t.Ancestors, tmpl)
-				// Reassign the template to the map
-				tmplMap[tmpl.Name] = t
-				continue
-			}
-			// If it did not exist, then set it
-			tmplMap[tmpl.Name] = *tmpl
-		}
-		return nil
-	})
-
-	var templates = make([]TerraTemplate, 0, len(tmplMap))
-	for _, tmpl := range tmplMap {
-		// Check whether this template should be built, if not part
-		if !*tmpl.Build {
-			continue
-		}
-		templates = append(templates, tmpl)
-	}
-	return templates
-}
+// func (t *Terrafile) BuildRequiredVersion() string {
+// 	var requiredVersion string
+// 	if t.TerraformBlock != nil {
+// 		requiredVersion = t.TerraformBlock.RequiredVersion
+// 	}
+// 	t.traverseAncestors(func(ancestor *Terrafile) error {
+// 		if requiredVersion == "" {
+// 			if ancestor.TerraformBlock != nil && ancestor.TerraformBlock.RequiredVersion != "" {
+// 				requiredVersion = ancestor.TerraformBlock.RequiredVersion
+// 			}
+// 		}
+// 		return nil
+// 	})
+// 	return requiredVersion
+// }
 
 func fromCtyValues(values map[string]cty.Value) (map[string]interface{}, error) {
 	var retValues = make(map[string]interface{})

@@ -1,6 +1,7 @@
 package parser
 
 type ExecBlock struct {
+	Skip      bool           `hcl:"skip,optional"`
 	ExtraArgs []string       `hcl:"extra_args,optional"`
 	PlanBlock *ExecPlanBlock `hcl:"plan,block"`
 }
