@@ -41,19 +41,30 @@ var planCmd = &cobra.Command{
 			return fmt.Errorf("parsing terraplate: %w", err)
 		}
 		if runBuild {
+			fmt.Print(buildStartMessage)
 			if err := builder.Build(config); err != nil {
-				return fmt.Errorf("building terraplate: %w", err)
+				return err
 			}
+			fmt.Print(buildSuccessMessage)
 		}
+		fmt.Print(terraformStartMessage)
 		runOpts := []func(r *runner.TerraRun){
 			runner.RunPlan(),
+			runner.RunShowPlan(),
 			runner.Jobs(planJobs),
 		}
 		if runInit {
 			runOpts = append(runOpts, runner.RunInit())
 		}
 		runOpts = append(runOpts, runner.ExtraArgs(args))
-		return runner.Run(config, runOpts...)
+		result := runner.Run(config, runOpts...)
+
+		// Print log
+		fmt.Println(result.Log())
+
+		fmt.Println(result.PlanSummary())
+
+		return result.Errors()
 	},
 }
 

@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -37,7 +38,8 @@ var rootCmd = &cobra.Command{
 Terraplate keeps your Terraform DRY.
 Create templates that get built using Go Templates to avoid repeating common
 Terraform configurations like providers and backend.`,
-	SilenceUsage: true,
+	SilenceUsage:  true,
+	SilenceErrors: true,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -45,6 +47,8 @@ Terraform configurations like providers and backend.`,
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
+		// Pretty print the error before finishing
+		fmt.Printf("\n%s %s\n", errorColor.Sprint("Error:"), err.Error())
 		os.Exit(1)
 	}
 }

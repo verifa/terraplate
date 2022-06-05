@@ -3,13 +3,30 @@ package runner
 import (
 	"fmt"
 	"os/exec"
+	"strings"
+	"time"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/remeh/sizedwaitgroup"
 	"github.com/verifa/terraplate/parser"
 )
 
 type terraCmd string
+
+func (t terraCmd) Action() string {
+	switch t {
+	case terraValidate:
+		return "validating"
+	case terraInit:
+		return "initializing"
+	case terraPlan:
+		return "planning"
+	case terraApply:
+		return "applying"
+	case terraShowPlan:
+		return "summarizing"
+	}
+	return "Unknown action"
+}
 
 const (
 	terraExe               = "terraform"
@@ -17,11 +34,12 @@ const (
 	terraInit     terraCmd = "init"
 	terraPlan     terraCmd = "plan"
 	terraApply    terraCmd = "apply"
+	terraShowPlan terraCmd = "show"
 
 	DefaultJobs = 1
 )
 
-func Run(config *parser.TerraConfig, opts ...func(r *TerraRun)) error {
+func Run(config *parser.TerraConfig, opts ...func(r *TerraRun)) *Result {
 	// Initialise TerraRun with defaults
 	run := TerraRun{
 		jobs: DefaultJobs,
@@ -30,24 +48,29 @@ func Run(config *parser.TerraConfig, opts ...func(r *TerraRun)) error {
 		opt(&run)
 	}
 
-	var errors error
+	var (
+		rootMods   = config.RootModules()
+		runResults = make([]*RunResult, len(rootMods))
+	)
 	// Start terraform runs in different root modules based on number of concurrent
 	// jobs that are allowed
 	swg := sizedwaitgroup.New(run.jobs)
-	for _, tf := range config.RootModules() {
+	for index, tf := range config.RootModules() {
 		swg.Add()
 		tf := tf
+		index := index
 
 		go func() {
 			defer swg.Done()
-			if err := runCmds(&run, tf); err != nil {
-				errors = multierror.Append(errors, err)
-			}
+			result := runCmds(&run, tf)
+			runResults[index] = result
 		}()
 	}
 	swg.Wait()
 
-	return errors
+	return &Result{
+		Runs: runResults,
+	}
 }
 
 func Jobs(jobs int) func(r *TerraRun) {
@@ -74,6 +97,12 @@ func RunPlan() func(r *TerraRun) {
 	}
 }
 
+func RunShowPlan() func(r *TerraRun) {
+	return func(r *TerraRun) {
+		r.showPlan = true
+	}
+}
+
 func RunApply() func(r *TerraRun) {
 	return func(r *TerraRun) {
 		r.apply = true
@@ -90,6 +119,7 @@ type TerraRun struct {
 	validate bool
 	init     bool
 	plan     bool
+	showPlan bool
 	apply    bool
 
 	// Max number of concurrent jobs allowed
@@ -98,62 +128,73 @@ type TerraRun struct {
 	extraArgs []string
 }
 
-func runCmds(run *TerraRun, tf *parser.Terrafile) error {
+func runCmds(run *TerraRun, tf *parser.Terrafile) *RunResult {
+	result := RunResult{
+		Terrafile: tf,
+	}
 	// Check if root module should be skipped or not
 	if tf.ExecBlock.Skip {
-		fmt.Println("")
-		fmt.Println("Skipping runner for", tf.Dir)
-		fmt.Println("")
-		return nil
+		fmt.Printf("%s: Skipping...\n", tf.RelativeDir())
+		result.Skipped = true
+		return &result
 	}
-	fmt.Println("")
-	fmt.Println("##################################")
-	fmt.Println("Calling Runner in", tf.Dir)
-	fmt.Println("##################################")
-	fmt.Println("")
+
 	if run.init {
-		if err := initCmd(run, tf); err != nil {
-			return fmt.Errorf("terrafile %s: %w", tf.Path, err)
+		taskResult := initCmd(run, tf)
+		result.Tasks = append(result.Tasks, taskResult)
+		if taskResult.HasError() {
+			return &result
 		}
 	}
 	if run.validate {
-		if err := validateCmd(run, tf); err != nil {
-			return fmt.Errorf("terrafile %s: %w", tf.Path, err)
+		taskResult := validateCmd(run, tf)
+		result.Tasks = append(result.Tasks, taskResult)
+		if taskResult.HasError() {
+			return &result
 		}
 	}
 	if run.plan {
-		if err := planCmd(run, tf); err != nil {
-			return fmt.Errorf("terrafile %s: %w", tf.Path, err)
+		taskResult := planCmd(run, tf)
+		result.Tasks = append(result.Tasks, taskResult)
+		if taskResult.HasError() {
+			return &result
+		}
+	}
+	if run.showPlan {
+		taskResult := showPlanCmd(run, tf)
+		result.ProcessPlan(taskResult)
+		result.Tasks = append(result.Tasks, taskResult)
+		if taskResult.HasError() {
+			return &result
 		}
 	}
 	if run.apply {
-		if err := applyCmd(run, tf); err != nil {
-			return fmt.Errorf("terrafile %s: %w", tf.Path, err)
+		taskResult := applyCmd(run, tf)
+		result.Tasks = append(result.Tasks, taskResult)
+		if taskResult.HasError() {
+			return &result
 		}
 	}
-	return nil
+	return &result
 }
 
-func initCmd(run *TerraRun, tf *parser.Terrafile) error {
+func initCmd(run *TerraRun, tf *parser.Terrafile) *TaskResult {
 	var args []string
-	args = append(args, string(terraInit))
-	args = append(args, run.extraArgs...)
-	return runCmd(tf, args)
+	args = append(args, tfCleanExtraArgs(run.extraArgs)...)
+	return runCmd(tf, terraInit, args)
 }
 
-func validateCmd(run *TerraRun, tf *parser.Terrafile) error {
+func validateCmd(run *TerraRun, tf *parser.Terrafile) *TaskResult {
 	var args []string
-	args = append(args, string(terraValidate))
-	args = append(args, run.extraArgs...)
-	return runCmd(tf, args)
+	args = append(args, tfCleanExtraArgs(run.extraArgs)...)
+	return runCmd(tf, terraValidate, args)
 }
 
-func planCmd(run *TerraRun, tf *parser.Terrafile) error {
+func planCmd(run *TerraRun, tf *parser.Terrafile) *TaskResult {
 	plan := tf.ExecBlock.PlanBlock
 
 	var args []string
 	args = append(args,
-		string(terraPlan),
 		fmt.Sprintf("-lock=%v", plan.Lock),
 		fmt.Sprintf("-input=%v", plan.Input),
 	)
@@ -162,45 +203,98 @@ func planCmd(run *TerraRun, tf *parser.Terrafile) error {
 			"-out="+plan.Out,
 		)
 	}
-	args = append(args, tf.ExecBlock.ExtraArgs...)
-	args = append(args, run.extraArgs...)
-	return runCmd(tf, args)
+	args = append(args, tfCleanExtraArgs(tf.ExecBlock.ExtraArgs)...)
+	args = append(args, tfCleanExtraArgs(run.extraArgs)...)
+	return runCmd(tf, terraPlan, args)
 }
 
-func applyCmd(run *TerraRun, tf *parser.Terrafile) error {
+func showPlanCmd(run *TerraRun, tf *parser.Terrafile) *TaskResult {
+	plan := tf.ExecBlock.PlanBlock
+	if plan.SkipOut {
+		return &TaskResult{
+			TerraCmd: terraShowPlan,
+			Skipped:  true,
+		}
+	}
+	var args []string
+	args = append(args, "-json", plan.Out)
+	return runCmd(tf, terraShowPlan, args)
+}
+
+func applyCmd(run *TerraRun, tf *parser.Terrafile) *TaskResult {
 	plan := tf.ExecBlock.PlanBlock
 
 	var args []string
 	args = append(args,
-		string(terraApply),
 		fmt.Sprintf("-lock=%v", plan.Lock),
 		fmt.Sprintf("-input=%v", plan.Input),
 	)
-	args = append(args, tf.ExecBlock.ExtraArgs...)
-	args = append(args, run.extraArgs...)
+	args = append(args, tfCleanExtraArgs(tf.ExecBlock.ExtraArgs)...)
+	args = append(args, tfCleanExtraArgs(run.extraArgs)...)
 
 	if !plan.SkipOut {
 		args = append(args, plan.Out)
 	}
 
-	return runCmd(tf, args)
+	return runCmd(tf, terraApply, args)
 }
 
-func runCmd(tf *parser.Terrafile, args []string) error {
-	args = append(tfArgs(tf), args...)
-	execCmd := exec.Command(terraExe, args...)
-	fmt.Printf("Executing:\n%s\n\n", execCmd.String())
-
-	out, runErr := execCmd.CombinedOutput()
-	if runErr != nil {
-		return fmt.Errorf("executing command %s: %w\n%s", execCmd.String(), runErr, out)
+func runCmd(tf *parser.Terrafile, tfCmd terraCmd, args []string) *TaskResult {
+	result := TaskResult{
+		TerraCmd: tfCmd,
 	}
-	fmt.Printf("%s\n", out)
-	return nil
+	cmdArgs := append(tfArgs(tf), string(tfCmd))
+	cmdArgs = append(cmdArgs, args...)
+	result.ExecCmd = exec.Command(terraExe, cmdArgs...)
+
+	// Create channel and start progress printer
+	done := make(chan bool)
+	go printProgress(tf.RelativeDir(), tfCmd, done)
+	defer func() { done <- true }()
+
+	var runErr error
+	result.Output, runErr = result.ExecCmd.CombinedOutput()
+	if runErr != nil {
+		result.Error = fmt.Errorf("%s: running %s command", tf.RelativeDir(), tfCmd)
+	}
+
+	return &result
 }
 
 func tfArgs(tf *parser.Terrafile) []string {
 	var args []string
 	args = append(args, "-chdir="+tf.Dir)
 	return args
+}
+
+// tfCleanExtraArgs returns the provided slice with any empty spaces removed.
+// Empty spaces create weird errors that are hard to debug
+func tfCleanExtraArgs(args []string) []string {
+	var cleanArgs = make([]string, 0)
+	for _, arg := range args {
+		if arg != "" {
+			cleanArgs = append(cleanArgs, arg)
+		}
+	}
+	return cleanArgs
+}
+
+func printProgress(path string, cmd terraCmd, done <-chan bool) {
+	var (
+		interval = time.Second * 10
+		ticker   = time.NewTicker(interval)
+		elapsed  time.Duration
+	)
+	defer ticker.Stop()
+	// Print initial line
+	fmt.Printf("%s: %s...\n", path, strings.Title(cmd.Action()))
+	for {
+		select {
+		case <-ticker.C:
+			elapsed += interval
+			fmt.Printf("%s: Still %s... [%s elapsed]\n", path, cmd.Action(), elapsed)
+		case <-done:
+			return
+		}
+	}
 }

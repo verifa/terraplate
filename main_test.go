@@ -49,12 +49,13 @@ func TestMain(t *testing.T) {
 			require.NoError(t, buildErr)
 
 			if !tc.skipTerraform {
-				runErr := runner.Run(config,
+				result := runner.Run(config,
 					runner.RunValidate(),
 					runner.RunInit(),
 					runner.RunPlan(),
 					runner.RunApply())
-				require.NoError(t, runErr)
+
+				require.NoError(t, result.Errors())
 			}
 		})
 	}

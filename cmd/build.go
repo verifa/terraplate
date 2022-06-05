@@ -44,9 +44,17 @@ templates and configurations detected.`,
 			return fmt.Errorf("building terraplate: %w", err)
 		}
 
+		fmt.Print(buildSuccessMessage)
+
 		if doValidate {
-			if err := runner.Run(config, runner.RunInit(), runner.RunValidate()); err != nil {
-				return fmt.Errorf("validation failed: %w", err)
+			result := runner.Run(config, runner.RunInit(), runner.RunValidate())
+			// Print log
+			fmt.Println(result.Log())
+
+			fmt.Println(result.PlanSummary())
+
+			if result.HasError() {
+				return result.Errors()
 			}
 		}
 

@@ -16,8 +16,8 @@ template "main" {
 }
 
 exec {
-  skip = true
-  # extra_args = [""]
+  skip       = false
+  extra_args = [""]
 
   plan {
     input    = false

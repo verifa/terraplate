@@ -9,6 +9,7 @@ import (
 	"sort"
 	"text/template"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/verifa/terraplate/parser"
 	"github.com/zclconf/go-cty/cty"
@@ -36,18 +37,22 @@ type BuildData struct {
 // Build takes a TerraConfig as input and builds all the templates and terraform
 // files
 func Build(config *parser.TerraConfig) error {
+	var buildErrs error
 	for _, terrafile := range config.RootModules() {
 		buildLocals, err := terrafile.LocalsAsGo()
 		if err != nil {
-			return fmt.Errorf("creating build locals: %w", err)
+			buildErrs = multierror.Append(buildErrs, fmt.Errorf("creating build locals: %w", err))
+			continue
 		}
 		buildVars, err := terrafile.VariablesAsGo()
 		if err != nil {
-			return fmt.Errorf("creating build variables: %w", err)
+			buildErrs = multierror.Append(buildErrs, fmt.Errorf("creating build variables: %w", err))
+			continue
 		}
 		buildValues, valuesErr := terrafile.ValuesAsGo()
 		if valuesErr != nil {
-			return fmt.Errorf("getting build values for terrafile \"%s\": %w", terrafile.Path, valuesErr)
+			buildErrs = multierror.Append(buildErrs, fmt.Errorf("getting build values for terrafile \"%s\": %w", terrafile.Path, valuesErr))
+			continue
 		}
 		buildData := BuildData{
 			Locals:          buildLocals,
@@ -61,14 +66,20 @@ func Build(config *parser.TerraConfig) error {
 		}
 
 		if err := buildTerraplate(terrafile, config, &buildData); err != nil {
-			return fmt.Errorf("building Terraplate Terraform file: %w", err)
+			buildErrs = multierror.Append(buildErrs, fmt.Errorf("building Terraplate Terraform file: %w", err))
+			continue
 		}
 
 		if err := buildTemplates(terrafile, buildData); err != nil {
-			return fmt.Errorf("building templates: %w", err)
+			buildErrs = multierror.Append(buildErrs, fmt.Errorf("building templates: %w", err))
+			continue
 		}
 
-		fmt.Printf("Successfully built %s - %d templates built\n", terrafile.Dir, len(terrafile.Templates))
+		fmt.Printf("%s: Built %d templates\n", terrafile.RelativeDir(), len(terrafile.Templates))
+	}
+
+	if buildErrs != nil {
+		return fmt.Errorf("building root modules: %s", buildErrs)
 	}
 
 	return nil
