@@ -61,6 +61,6 @@ templates and configurations detected.`,
 }
 
 func init() {
-	rootCmd.AddCommand(buildCmd)
+	RootCmd.AddCommand(buildCmd)
 	buildCmd.Flags().BoolVar(&doValidate, "validate", false, "Validate (requires init) each root module after build")
 }

@@ -1,64 +1,35 @@
-<img src="./terraplate-logo.svg" width="500">
+<img src="docs/assets/images/terraplate-verifa.svg" alt="Terraplate logo" width="600" />
 
 > DRY Terraform with Go Templates
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/verifa/terraplate)](https://goreportcard.com/report/github.com/verifa/terraplate)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
+Terraplate is a thin wrapper around [Terraform](https://terraform.io) to keep things DRY and improve the developer experience.
+
+## How it works
+
+Terraplate traverses up and down from the working directory detecting Terraplate files (AKA "Terrafiles"), treating the Terrafiles without child Terrafiles as [Root Modules](https://www.terraform.io/language/modules#the-root-module) (i.e. if a Terrafile does not have any children, it's considered a Root Module where Terraform should be run).
+
+Terraplate builds Terraform files based on your provided templates (using Go Templates).
+Define your Terraform snippets once, and reuse them with Go Templates to substitute the values based on the different root modules.
+
+<img src="docs/assets/images/terraplate-file-structure.png" alt="Terraplate example file structure" width="600" />
+
+The built files are completely normal Terraform files that should be **version controlled** and can be applied either via the `terraform` CLI or using the `terraplate` CLI.
+This way you can focus on writing your Terraform code that creates resources, and let Terraplate handle the boilerplate (like backend, providers, configuration, etc) based on your provided templates.
+
+The goal of Terraplate is to not do any magic: just plain (but DRY) Terraform, which means you can bring your own tools for static analysis, security, policies, testing and deployment.
+
+The `terraplate` CLI allows you to run Terraform across all your Root Modules and provide a summary of plans.
+
+[![terraplate-asciicast](https://asciinema.org/a/502295.svg)](https://asciinema.org/a/502295)
+
 Terraplate is a thin wrapper around Terraform aimed at reducing the amount of duplicate code used when working with multiple different Terraform [root modules](https://www.terraform.io/language/modules#the-root-module).
-
-## What it does
-
-Terraplate traverses up and down from the working directory detecting Terraplate files (AKA "Terrafiles"), treating the Terrafiles without child Terrafiles as [Root Modules](https://www.terraform.io/language/modules#the-root-module) (i.e. if a Terrafile does not have any children, it's considered a "root module" where Terraform should be run).
-
-Terraplate builds Terraform files based on your provided Terraform templates (using the Go Templating engine).
-Define your Terraform configs once, and use Go Templates to substitute the values based on the different root modules.
-
-The built files are completely normal Terraform files, that should be checked into Git and can be run either via the `terraform` CLI or using the `terraplate` CLI.
-
-[![asciicast](https://asciinema.org/a/DXAzFxSUWFaYn5iPU8DnliyRZ.svg)](https://asciinema.org/a/DXAzFxSUWFaYn5iPU8DnliyRZ)
-
-## Motivation
-
-Terraplate would not exist without [Terragrunt](https://terragrunt.gruntwork.io/).
-Being fans of Terragrunt we took a lot from the way Terragrunt works to make Terraplate have a familiar feeling.
-
-The main reasons for developing Terraplate when Terragrunt exists is the following:
-
-1. Terragrunt does not use native Terraform syntax
-2. Terraplate has inheritance built in without being explicit (e.g. functions like `find_in_parent_folders()` don't need to be used)
-
-There's a lot of things you can do with Terragrunt that you cannot do with Terraplate.
-Like mentioned, we are Terragrunt fans and have been trying to find a happy place using *just* Terraform, and that's why Terraplate was created.
-If you start with Terraplate and find it's not for you; that's ok, there's no lock-in as all the files are just vanilla Terraform.
-
-If you are a Terragrunt user and find useful things missing, please raise an issue or discussion :)
-
-## Who is it for
-
-**1. Terraform users with multiple [Root Modules](https://www.terraform.io/language/modules#the-root-module)**
-
-This is related to 1. above, where users have already solved this with Terragrunt or using Terraform [workspaces](https://www.terraform.io/cli/workspaces).
-
-Once you start to scale your Terraform usage you will not want to put all of your code into a single root module.
-
-For example, when working with Kubernetes it is also [strongly recommended](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs#stacking-with-managed-kubernetes-cluster-resources) to split the cluster creation from the creation of Kubernetes resources using Terraform.
-
-**2. Terraform users who want to avoid [Workspaces](https://www.terraform.io/cli/workspaces)**
-
-If you don't find workspaces right for you, Terraplate can avoid lots of copy and paste and provide a better developer experience (avoid having to switch workspaces and instead switch directory). Terraform's own [documentation](https://www.terraform.io/language/state/workspaces#when-to-use-multiple-workspaces) also do not recommend workspaces in certain cases:
-
-> *Workspaces alone are not a suitable tool for system decomposition, because each subsystem should have its own separate configuration and backend, and will thus have its own distinct set of workspaces.*
-
-**3. Overcoming limitations of Terraform's dynamic behavior**
-
-An example of a limitation is the ability to do `for_each` for providers (or even dynamically reference providers to pass to modules using a `for_each`).
-With Terraplate, you can build the `.tf` Terraform file that creates the providers and invokes the modules and overcome this.
-It's not the cleanest, but we've found it much friendlier than the numerous workarounds we have to do to achieve the same thing with vanilla Terraform.
 
 ## Documentation
 
-Please check the [documentation](./DOCUMENTATION.md) for more details like installation and configurations.
+Please check the [Documentation](https://terraplate.verifa.io)
 
 ## Project Status
 

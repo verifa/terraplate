@@ -1,0 +1,4 @@
+arrange:
+  - terrafile.md
+  # - templates.md
+  - ...

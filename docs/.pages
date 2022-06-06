@@ -1,0 +1,13 @@
+# Page tree
+nav:
+  - Home:
+      - index.md
+      - quick-start.md
+      - installation.md
+      - examples.md
+      - project-status.md
+  - Reference: reference
+  - Tutorials: tutorials
+  - Commands: commands
+  - FAQ: faq
+  - ...

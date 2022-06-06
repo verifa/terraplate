@@ -72,5 +72,5 @@ the build command, for example.`,
 }
 
 func init() {
-	rootCmd.AddCommand(parseCmd)
+	RootCmd.AddCommand(parseCmd)
 }

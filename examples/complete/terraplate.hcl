@@ -2,14 +2,14 @@
 # Define a template that reads from a file
 template "example" {
   contents = read_template("example.tmpl")
-  # Override the default target where to write the file
+  # Override the target where to write the file (default: example.tp.tf)
   target    = "example_custom.tp.tf"
   condition = "{{ eq .Locals.key \"value\" }}"
 }
 
 # Define a template that embeds the content
 template "embedded" {
-  contents = <<EOL
+  contents = <<-EOL
     # Content here will be templated
   EOL
 }
@@ -18,6 +18,12 @@ template "embedded" {
 # terraplate.tf file
 locals {
   key = "value"
+  other = {
+    msg = "can also be an object"
+    nested = {
+      list = ["and an object", "with a list"]
+    }
+  }
 }
 
 # Define terraform variables that can be used for templating and are written to the

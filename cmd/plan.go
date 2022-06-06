@@ -69,7 +69,7 @@ var planCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(planCmd)
+	RootCmd.AddCommand(planCmd)
 
 	planCmd.Flags().BoolVar(&runBuild, "build", false, "Run build process also")
 	planCmd.Flags().BoolVar(&runInit, "init", false, "Run terraform init also")

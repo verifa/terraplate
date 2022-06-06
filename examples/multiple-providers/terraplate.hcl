@@ -2,7 +2,7 @@
 # multiple clusters
 
 template "kubernetes-providers" {
-  contents = <<EOL
+  contents = <<-EOL
   {{ range $cluster, $value := .Values.eks_clusters }}
   data "aws_eks_cluster" "{{ $cluster }}" {
     name     = "{{ $cluster }}"

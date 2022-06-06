@@ -1,0 +1,50 @@
+site_name: Terraplate
+site_url: https://terraplate.verifa.io
+site_description: >-
+  Terraplate is a thin wrapper around Terraform to keep things DRY and improve the developer experience.
+
+# Repository
+repo_name: verifa/terraplate
+repo_url: https://github.com/verifa/terraplate
+
+# Copyright
+copyright: Copyright &copy; 2022 Verifa
+
+# Theme
+theme:
+  name: material
+  # logo: assets/images/logo.png
+  # favicon: assets/images/favicon.png
+  font:
+    text: Outfit
+  features:
+    - navigation.tabs
+    - content.code.annotate
+
+# Plugins
+plugins:
+  - search
+  - awesome-pages
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/verifa
+    - icon: fontawesome/brands/docker
+      link: https://hub.docker.com/r/verifa/terraplate/
+
+extra_css:
+  - stylesheets/theme.css
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      check_paths: true
+  - pymdownx.superfences
+  - meta
+  - toc:
+      permalink: true

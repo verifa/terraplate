@@ -17,15 +17,31 @@
 # Ignore build directory
 build/
 
+# Ignore mkdocs build directory
+site/
+
 # Ignore the generated files (.tf and .tfvars)
 examples/**/tfplan
 examples/**/*.*
 !examples/**/.gitignore
 !examples/**/*.yaml
 !examples/**/terraplate.hcl
-!examples/**/*.tp.hcl
 !examples/**/*.md
 !examples/**/templates/*
+
+# Ignore files in tutorials
+tutorials/**/tfplan
+tutorials/**/*.*
+!tutorials/**/.gitignore
+!tutorials/**/*.yaml
+!tutorials/**/terraplate.hcl
+!tutorials/**/*.md
+!tutorials/**/templates/*
+# Ignore manually written terraform files
+!tutorials/**/*.tf
+# But... do ignore the generated files
+tutorials/**/*.tp.tf
+tutorials/**/terraplate.tf
 
 # goreleaser build directory
 dist/

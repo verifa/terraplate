@@ -15,18 +15,6 @@ template "main" {
   contents = read_template("main.tmpl")
 }
 
-exec {
-  skip       = false
-  extra_args = [""]
-
-  plan {
-    input    = false
-    lock     = true
-    out      = "tfplan"
-    skip_out = false
-  }
-}
-
 terraform {
   required_providers {
     local = {
@@ -35,5 +23,5 @@ terraform {
     }
   }
 
-  required_version = ">= 1.1.0"
+  required_version = ">= 1.0.0"
 }
