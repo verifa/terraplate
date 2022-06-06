@@ -51,7 +51,7 @@ Prefer locals over variables unless you want to override something at runtime; i
 Example:
 
 ```hcl
-// env.tp.hcl
+# env.tp.hcl
 locals {
   environment = "dev"
 }
@@ -60,7 +60,7 @@ locals {
 Output:
 
 ```hcl
-// terraplate.tf
+# terraplate.tf
 locals {
   environment = "dev"
 }
@@ -77,7 +77,7 @@ Prefer `locals` over variables if you will not be overriding inputs at runtime.
 Example:
 
 ```hcl
-// env.tp.hcl
+# env.tp.hcl
 variables {
   environment = "dev"
 }
@@ -86,7 +86,7 @@ variables {
 Output:
 
 ```hcl
-// terraplate.tf
+# terraplate.tf
 variable "environment" {
   default = "dev"
 }
@@ -104,14 +104,14 @@ A prime example of this is configuring the Terraform backend because variables c
 Example:
 
 ```hcl
-// terraplate.hcl
+# terraplate.hcl
 values {
     some_value = "hello!"
 }
 ```
 
 ```hcl
-// templates/some_value.tp.tf
+# templates/some_value.tp.tf
 locals {
     some_value = "{{ .Values.some_value }}"
 }
@@ -120,7 +120,7 @@ locals {
 Output:
 
 ```hcl
-// some_value.tp.tf
+# some_value.tp.tf
 locals {
     some_value = "hello!"
 }
@@ -135,7 +135,7 @@ Templates can also define non-Terraform files in case you want to just do some g
 Example:
 
 ```hcl
-// templates/backend.tmpl
+# templates/backend.tmpl
 
 terraform {
   backend "s3" {
@@ -148,22 +148,22 @@ terraform {
 ```
 
 ```hcl
-// terraplate.hcl
+# terraplate.hcl
 
-// Define a template to be built, reading the template we have defined.
-// All child terrafiles will inherit and build this template.
+# Define a template to be built, reading the template we have defined.
+# All child terrafiles will inherit and build this template.
 template "backend" {
-  // read_template is a custom function that parses up the directory tree,
-  // looking for a matching template file
+  # read_template is a custom function that parses up the directory tree,
+  # looking for a matching template file
   contents = read_template("backend.tmpl")
-  // target is optional, and defaults to the template name with a "tp.tf" suffix
+  # target is optional, and defaults to the template name with a "tp.tf" suffix
   target = "backend.tp.tf"
 }
 
-// Templates can also embed the contents directly
+# Templates can also embed the contents directly
 template "embedded" {
   contents = <<EOL
-    // Template this
+    # Template this
   EOL
 }
 ```
@@ -189,9 +189,9 @@ terraform {
 Output:
 
 ```hcl
-// terraplate.tf
+# terraplate.tf
 terraform {
-  // ...
+  # ...
   required_providers {
     local = {
       source  = "hashicorp/local"
@@ -216,10 +216,10 @@ required_version = ">= 1.1.0"
 Output:
 
 ```hcl
-// terraplate.tf
+# terraplate.tf
 terraform {
   required_version = ">= 1.1.0"
-  // ...
+  # ...
 }
 ```
 

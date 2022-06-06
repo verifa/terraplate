@@ -9,7 +9,7 @@ template "example" {
 # Define a template that embeds the content
 template "embedded" {
   contents = <<EOL
-    // Content here will be templated
+    # Content here will be templated
   EOL
 }
 
