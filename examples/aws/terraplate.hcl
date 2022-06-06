@@ -16,6 +16,11 @@ variables {
   project     = "terraplate-aws-example"
 }
 
+exec {
+  # Requires AWS auth to run, so skip running Terraform
+  skip = true
+}
+
 terraform {
   required_version = ">= 1.0.0"
 

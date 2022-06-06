@@ -25,12 +25,10 @@ func TestMain(t *testing.T) {
 			dir: "examples/complete",
 		},
 		{
-			dir:           "examples/aws",
-			skipTerraform: true, // would require aws auth
+			dir: "examples/aws",
 		},
 		{
-			dir:           "examples/aws/stack",
-			skipTerraform: true, // would require aws auth
+			dir: "examples/aws/stack",
 		},
 		{
 			dir: "examples/config",

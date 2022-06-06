@@ -50,6 +50,12 @@ If you don't find workspaces right for you, Terraplate can avoid lots of copy an
 
 > *Workspaces alone are not a suitable tool for system decomposition, because each subsystem should have its own separate configuration and backend, and will thus have its own distinct set of workspaces.*
 
+**3. Overcoming limitations of Terraform's dynamic behavior**
+
+An example of a limitation is the ability to do `for_each` for providers (or even dynamically reference providers to pass to modules using a `for_each`).
+With Terraplate, you can build the `.tf` Terraform file that creates the providers and invokes the modules and overcome this.
+It's not the cleanest, but we've found it much friendlier than the numerous workarounds we have to do to achieve the same thing with vanilla Terraform.
+
 ## Documentation
 
 Please check the [documentation](./DOCUMENTATION.md) for more details like installation and configurations.
