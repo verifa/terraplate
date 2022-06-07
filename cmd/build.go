@@ -51,8 +51,6 @@ templates and configurations detected.`,
 			// Print log
 			fmt.Println(result.Log())
 
-			fmt.Println(result.PlanSummary())
-
 			if result.HasError() {
 				return result.Errors()
 			}

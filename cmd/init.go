@@ -39,8 +39,6 @@ var initCmd = &cobra.Command{
 		// Print log
 		fmt.Println(result.Log())
 
-		fmt.Println(result.PlanSummary())
-
 		return result.Errors()
 	},
 }
