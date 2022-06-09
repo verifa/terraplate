@@ -72,6 +72,39 @@ func (r *Result) PlanSummary() string {
 	return summary.String()
 }
 
+func (r *Result) RunsWithDrift() []*RunResult {
+	var runs []*RunResult
+	for _, run := range r.Runs {
+		if run.Drift().HasDrift() {
+			runs = append(runs, run)
+		}
+	}
+	return runs
+}
+
+func (r *Result) RunsWithError() []*RunResult {
+	var runs []*RunResult
+	for _, run := range r.Runs {
+		if run.HasError() {
+			runs = append(runs, run)
+		}
+	}
+	return runs
+}
+
+// HasDrift returns true if any drift was detected in any of the runs
+func (r *Result) HasDrift() bool {
+	for _, run := range r.Runs {
+		if drift := run.Drift(); drift != nil {
+			// If at least one of the runs has drifted, then our result has drift
+			if drift.HasDrift() {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (r *Result) HasError() bool {
 	for _, run := range r.Runs {
 		if run.HasError() {
@@ -115,8 +148,16 @@ func (r *RunResult) PlanSummary() string {
 	if !r.HasPlan() {
 		return planNotAvailable.Sprint("Plan not available")
 	}
+	return r.Drift().Diff()
+}
 
-	return tfPlanSummary(r.Plan)
+func (r *RunResult) Drift() *Drift {
+	if !r.HasPlan() {
+		// Return an empty drift which means no drift (though user should check
+		// if plan was available as well)
+		return &Drift{}
+	}
+	return driftFromPlan(r.Plan)
 }
 
 func (r *RunResult) HasError() bool {
@@ -228,34 +269,23 @@ func (t *TaskResult) Log() string {
 	return summary.String()
 }
 
-func tfPlanSummary(plan *tfjson.Plan) string {
-	var (
-		numCreate  = 0
-		numDestroy = 0
-		numChange  = 0
-	)
+func driftFromPlan(plan *tfjson.Plan) *Drift {
+	var drift Drift
 	for _, change := range plan.ResourceChanges {
 		for _, action := range change.Change.Actions {
 			switch action {
 			case tfjson.ActionCreate:
-				numCreate++
+				drift.AddResources = append(drift.AddResources, change)
 			case tfjson.ActionDelete:
-				numDestroy++
+				drift.DestroyResources = append(drift.DestroyResources, change)
 			case tfjson.ActionUpdate:
-				numChange++
+				drift.ChangeResources = append(drift.ChangeResources, change)
 			default:
 				// We don't care about other actions for the summary
 			}
 
 		}
 	}
-	if numCreate == 0 && numDestroy == 0 && numChange == 0 {
-		return planNoChangesColor.Sprint("No changes.")
-	}
-	return fmt.Sprintf(
-		"%s %s %s",
-		planCreateColor.Sprintf("%d to add.", numCreate),
-		planUpdateColor.Sprintf("%d to change.", numChange),
-		planDestroyColor.Sprintf("%d to destroy.", numDestroy),
-	)
+
+	return &drift
 }
