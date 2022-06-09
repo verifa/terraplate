@@ -1,0 +1,46 @@
+{{- $runsWithError := .Result.RunsWithError }}
+{{- $runsWithDrift := .Result.RunsWithDrift }}
+{{- $summary := "*Summary*\\n" }}
+{{- $errorSummary := printf "Error encountered in %d root modules\\n" (len $runsWithError) }}
+{{- $driftSummary := printf "Drift detected in %d root modules\\n" (len $runsWithDrift)  }}
+{{- if len $runsWithError }}
+    {{- $summary = printf "%s%s" $summary $errorSummary }}
+{{- end }}
+{{- if len $runsWithDrift }}
+    {{- $summary = printf "%s%s" $summary $driftSummary }}
+{{- end }}
+{{- if not (len $runsWithDrift) }}
+    {{- $summary = printf "%sNo drift detected\\n" $summary }}
+{{- end }}
+{{- if .ResultsURL }}
+    {{- $summary = printf "%s\\nSee results <%s>" $summary .ResultsURL }}
+{{- end }}
+{
+    "attachments": [
+        {
+            "color": "{{ .StatusColor }}",
+            "blocks": [
+                {
+                    "type": "section",
+                    "fields": [
+                        {
+                            "type": "mrkdwn",
+                            "text": "*Repository*\n{{ .Repo.Name }}"
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": "*Branch*\n{{ .Repo.Branch }}"
+                        }
+                    ]
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": "{{ $summary }}"
+                    }
+                }
+            ]
+        }
+    ]
+}

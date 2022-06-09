@@ -56,7 +56,13 @@ func Parse(config *Config) (*TerraConfig, error) {
 	return &tfc, nil
 }
 
-func traverseUpDirectory(path string, visit func(dir string) (bool, error)) error {
+// TraverseUpDirectory takes a path and a callback function.
+// For each directory that is an ancestor of path (and including path), call the
+// callback function.
+// Callback returns an error if something went wrong (which stops the traversal)
+// and a boolean: if true is returned the traversal continues, if false the traversal
+// finishes gracefully
+func TraverseUpDirectory(path string, visit func(dir string) (bool, error)) error {
 	if !filepath.IsAbs(path) {
 		var pathErr error
 		path, pathErr = filepath.Abs(path)
@@ -94,7 +100,7 @@ func walkUpDirectory(path string) (*Terrafile, error) {
 		skipFirst      = false
 		childTerrafile *Terrafile
 	)
-	travErr := traverseUpDirectory(path, func(dir string) (bool, error) {
+	travErr := TraverseUpDirectory(path, func(dir string) (bool, error) {
 		// Skip the first directory as it will get processed when we walk down
 		// the directory structure
 		if !skipFirst {

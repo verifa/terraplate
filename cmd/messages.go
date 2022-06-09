@@ -13,5 +13,4 @@ var (
 	buildStartMessage     = boldText.Sprint("\nBuilding root modules...\n\n")
 	buildSuccessMessage   = fmt.Sprintf("\n%s All root modules built\n\n", successColor.Sprint("Success!"))
 	terraformStartMessage = boldText.Sprint("\nTerraforming root modules...\n\n")
-	planSuccessMessage    = fmt.Sprintf("\n%s All root modules planned\n\n", successColor.Sprint("Success!"))
 )

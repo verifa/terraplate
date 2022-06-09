@@ -42,7 +42,7 @@ func readTemplateFunc(dir string) function.Function {
 				found    bool
 				readErr  error
 			)
-			travErr := traverseUpDirectory(dir, func(travDir string) (bool, error) {
+			travErr := TraverseUpDirectory(dir, func(travDir string) (bool, error) {
 				var path string
 				// Check if there is a template file first in the templates
 				// directory, and then in the directory we are traversing
