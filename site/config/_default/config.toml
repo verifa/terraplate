@@ -55,9 +55,6 @@ rel  = "sitemap"
   filename = "sitemap.xml"
   priority = 0.5
 
-[taxonomies]
-  contributor = "contributors"
-
 [permalinks]
 #  blog = "/blog/:title/"
 # docs = "/docs/1.0/:sections[1:]/:title/"

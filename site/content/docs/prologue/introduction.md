@@ -1,7 +1,7 @@
 ---
 title: "Introduction"
-description: "Doks is a Hugo theme for building secure, fast, and SEO-ready documentation websites, which you can easily update and customize."
-lead: "Doks is a Hugo theme for building secure, fast, and SEO-ready documentation websites, which you can easily update and customize."
+description: "Terraplate is a small command line tool to keep Terraform DRY and improve developer productivity when working with Terraform."
+lead: "Terraplate is a small command line tool to keep Terraform DRY and improve developer productivity when working with Terraform."
 date: 2020-10-06T08:48:57+00:00
 lastmod: 2020-10-06T08:48:57+00:00
 draft: false
@@ -13,9 +13,9 @@ weight: 100
 toc: true
 ---
 
-## Get started
+## Getting started
 
-There are two main ways to get started with Doks:
+Checkout our tutorials if you are new to Terraplate, or our Quick Start for a one-pager with useful information.
 
 ### Tutorial
 
@@ -29,30 +29,56 @@ Step-by-step instructions on how to start a new Doks project. [Tutorial →](htt
 
 One page summary of how to start a new Doks project. [Quick Start →]({{< relref "quick-start" >}})
 
-## Go further
+## What it does
 
-Recipes, Reference Guides, Extensions, and Showcase.
+Terraplate traverses up and down from the working directory detecting Terraplate files (AKA "Terrafiles"), treating the Terrafiles without child Terrafiles as [Root Modules](https://www.terraform.io/language/modules#the-root-module) (i.e. if a Terrafile does not have any children, it's considered a "root module" where Terraform should be run).
 
-### Recipes
+Terraplate builds Terraform files based on your provided Terraform templates (using the Go Templating engine).
+Define your Terraform configs once, and use Go Templates to substitute the values based on the different root modules.
 
-Get instructions on how to accomplish common tasks with Doks. [Recipes →](https://getdoks.org/docs/recipes/project-configuration/)
+The built files are completely normal Terraform files that should be checked into Git and can be run either via the `terraform` CLI or using the `terraplate` CLI.
+This way you can write your own Terraform code manually, focusing only the resources you are creating and not on boilerplate (like backend, providers, configuration, etc).
 
-### Reference Guides
+The goal of Terraplate is to not do any magic: just plain (but DRY) Terraform, which means you can bring your own tools for static analysis, security, policies and testing.
 
-Learn how to customize Doks to fully make it your own. [Reference Guides →](https://getdoks.org/docs/reference-guides/security/)
+The `terraplate` CLI allows you to run Terraform across all your Root Modules and provide a summary of plans.
 
-### Extensions
+> INSERT VIDEO HERE
 
-Get instructions on how to add even more to Doks. [Extensions →](https://getdoks.org/docs/extensions/breadcrumb-navigation/)
+<!-- [![asciicast](https://asciinema.org/a/DXAzFxSUWFaYn5iPU8DnliyRZ.svg)](https://asciinema.org/a/DXAzFxSUWFaYn5iPU8DnliyRZ) -->
 
-### Showcase
+## Motivation
 
-See what others have build with Doks. [Showcase →](https://getdoks.org/showcase/electric-blocks/)
+As you scale your Terraform usage you will start to split your resources out across multiple Terraform [Root Modules](https://www.terraform.io/language/modules#the-root-module).
+Each Root Module must define it's own backend (state storage) and providers that are required, and this can lead to a lot of copy+paste.
 
-## Contributing
+There are existing techniques to help alleviate this, two notable mentions:
 
-Find out how to contribute to Doks. [Contributing →](https://getdoks.org/docs/contributing/how-to-contribute/)
+1. [Terraform Workspaces](https://www.terraform.io/cli/workspaces): this only partially solves the issue when you have multiple environments (e.g. prod & dev) for the same infrastructure. Nonetheless, it helps reduce the amount of copied code. Subjectively, we also disagree with this approach as switching workspaces within directories becomes a chore and hinders productivity.
+2. [Terragrunt](https://terragrunt.gruntwork.io/): Terraplate would not exist without Terragrunt.Terragrunt inspired Terraplate and therefore it is no surprise that Terraplate has a similar feel. However, there are differences that we feel warranted the development of another tool. Check our [FAQ on the subject]({{< relref "../faq/terraplate-vs-terragrunt" >}}).
 
-## Help
+## Who is it for
 
-Get help on Doks. [Help →]({{< relref "how-to-update" >}})
+### Terraform users with multiple [Root Modules](https://www.terraform.io/language/modules#the-root-module)
+
+Once you start to scale your Terraform usage you will not want to put all of your code into a single root module (i.e. a single state).
+
+The two main benefits Terraplate brings is:
+
+1. Keeping your code DRY and more maintainable
+2. Developer productivity: not just less time writing boilerplate, but also running Terraform across all your Root Modules with a nice summary
+
+### Terraform users who want to avoid [Workspaces](https://www.terraform.io/cli/workspaces)
+
+If you don't find workspaces right for you, Terraplate can avoid lots of copy and paste and provide a better developer experience (avoid having to switch workspaces and instead switch directory). Terraform's own [documentation](https://www.terraform.io/language/state/workspaces#when-to-use-multiple-workspaces) also do not recommend workspaces in certain cases:
+
+> *Workspaces alone are not a suitable tool for system decomposition, because each subsystem should have its own separate configuration and backend, and will thus have its own distinct set of workspaces.*
+
+We know some people really enjoy workspaces, so opinions seem to vary and that's fine.
+Terraplate doesn't claim to be better, just an alternative that we prefer :)
+
+### Overcoming limitations of Terraform's dynamic behavior
+
+An example of a limitation is the ability to do `for_each` for providers (or even dynamically reference providers to pass to modules using a `for_each`).
+With Terraplate, you can build the `.tf` Terraform file that creates the providers and invokes the modules and overcome this.
+It's not the cleanest, but we've found it much friendlier than the numerous workarounds we have to do to achieve the same thing with vanilla Terraform.
