@@ -29,8 +29,8 @@ type cmdConfig struct {
 
 var config cmdConfig
 
-// rootCmd represents the base command when called without any subcommands
-var rootCmd = &cobra.Command{
+// RootCmd represents the base command when called without any subcommands
+var RootCmd = &cobra.Command{
 	Use:   "terraplate",
 	Short: "DRY Terraform using Go Templates",
 	Long: `DRY Terraform using Go Templates.
@@ -43,9 +43,9 @@ Terraform configurations like providers and backend.`,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
+// This is called by main.main(). It only needs to happen once to the RootCmd.
 func Execute() {
-	err := rootCmd.Execute()
+	err := RootCmd.Execute()
 	if err != nil {
 		// Pretty print the error before finishing
 		fmt.Printf("\n%s %s\n", errorColor.Sprint("Error:"), err.Error())
@@ -54,5 +54,5 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&config.ParserConfig.Chdir, "chdir", "C", ".", "Switch to a different working directory before executing the given subcommand.")
+	RootCmd.PersistentFlags().StringVarP(&config.ParserConfig.Chdir, "chdir", "C", ".", "Switch to a different working directory before executing the given subcommand.")
 }

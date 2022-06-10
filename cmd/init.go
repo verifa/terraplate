@@ -46,7 +46,7 @@ var initCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(initCmd)
+	RootCmd.AddCommand(initCmd)
 
 	initCmd.Flags().IntVarP(&initJobs, "jobs", "j", runner.DefaultJobs, "Number of concurrent terraform jobs to run at one time")
 }

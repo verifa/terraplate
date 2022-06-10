@@ -17,6 +17,8 @@ package main
 
 import "github.com/verifa/terraplate/cmd"
 
+//go:generate go run site/gen.go
+
 func main() {
 	cmd.Execute()
 }
