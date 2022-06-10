@@ -1,14 +1,14 @@
-name = "Doks child theme"
-license = "MIT"
+name = "Terraplate"
+license = "APACHE-2.0"
 licenselink = "https://github.com/h-enk/doks/blob/master/LICENSE"
-description = "Hugo theme helping you build modern documentation websites that are secure, fast, and SEO-ready — by default."
+description = "Terraplate: DRY Terraform with Go templates."
 
-homepage = "https://github.com/h-enk/doks-child-theme"
-demosite = "https://doks-child-theme.netlify.app"
+homepage = "https://github.com/verifa/terraplate"
+demosite = "https://terraplate.verifa.io"
 
-tags = ["landing page", "documentation", "blog", "minimal", "modern", "customizable", "search", "dark mode", "bootstrap"]
-features = ["security aware", "fast by default", "seo-ready", "development tools", "bootstrap framework", "netlify-ready", "full text search", "page layouts", "dark mode"]
+tags = ["terraform", "infrastructure-as-code", "documentation"]
+features = ["drift detection", "dry terraform", "productivity"]
 
 [author]
-  name = "Henk Verlinde"
-  homepage = "https://henkverlinde.com"
+  name = "Jacob Lärfors"
+  homepage = "https://verifa.io/crew/jlarfors"
