@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strconv"
 
 	"github.com/hashicorp/hcl/v2/hclsimple"
 	"github.com/imdario/mergo"
@@ -63,6 +64,31 @@ type TerraTemplate struct {
 	// Target defines the target file to generate.
 	// Defaults to the Name of the template with a ".tp.tf" extension
 	Target string `hcl:"target,optional"`
+	// ConditionAttr defines a string boolean that specifies whether this template
+	// should be built or not.
+	// The string can include Go templates, which means you can have dynamic
+	// behaviour based on the Terrafile
+	ConditionAttr string `hcl:"condition,optional"`
+}
+
+// Condition resolves the condition attribute to a boolean, or error.
+// Errors can occur if either the templating errored or the conversion from string
+// to bool is not possible.
+func (t TerraTemplate) Condition(data *BuildData) (bool, error) {
+	// If not set, the default is true (to build)
+	if t.ConditionAttr == "" {
+		return true, nil
+	}
+	// First tempalte it
+	contents, execErr := ExecTemplate(data, "condition", t.ConditionAttr)
+	if execErr != nil {
+		return false, fmt.Errorf("templating condition for template %s: %w", t.Name, execErr)
+	}
+	condition, parseErr := strconv.ParseBool(contents.String())
+	if parseErr != nil {
+		return false, fmt.Errorf("converting condition string to bool for template %s: %w", t.Name, parseErr)
+	}
+	return condition, nil
 }
 
 // TerraformBlock defines the terraform{} block within a Terrafile
@@ -197,6 +223,31 @@ func (t *Terrafile) rootModules() []*Terrafile {
 		return nil
 	})
 	return terrafiles
+}
+
+func (t *Terrafile) BuildData() (*BuildData, error) {
+	buildLocals, err := t.LocalsAsGo()
+	if err != nil {
+		return nil, fmt.Errorf("creating build locals: %w", err)
+	}
+	buildVars, err := t.VariablesAsGo()
+	if err != nil {
+		return nil, fmt.Errorf("creating build variables: %w", err)
+	}
+	buildValues, valuesErr := t.ValuesAsGo()
+	if valuesErr != nil {
+		return nil, fmt.Errorf("getting build values for terrafile \"%s\": %w", t.Path, valuesErr)
+	}
+	return &BuildData{
+		Locals:          buildLocals,
+		Variables:       buildVars,
+		Values:          buildValues,
+		Terrafile:       t,
+		RelativePath:    t.RelativePath(),
+		RelativeDir:     t.RelativeDir(),
+		RelativeRootDir: t.RelativeRootDir(),
+		RootDir:         t.RootDir(),
+	}, nil
 }
 
 // RelativeRootDir returns the relative directory of the root Terrafile

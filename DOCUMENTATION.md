@@ -158,6 +158,10 @@ template "backend" {
   contents = read_template("backend.tmpl")
   # target is optional, and defaults to the template name with a "tp.tf" suffix
   target = "backend.tp.tf"
+  # condition is optional, and defaults to true. It specifies whether to build
+  # the template or not and supports Go templating
+  # condition = ""
+  
 }
 
 # Templates can also embed the contents directly
