@@ -3,7 +3,8 @@
 template "example" {
   contents = read_template("example.tmpl")
   # Override the default target where to write the file
-  target = "example_custom.tp.tf"
+  target    = "example_custom.tp.tf"
+  condition = "{{ eq .Locals.key \"value\" }}"
 }
 
 # Define a template that embeds the content

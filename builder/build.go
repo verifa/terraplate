@@ -1,13 +1,11 @@
 package builder
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
-	"text/template"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -16,61 +14,18 @@ import (
 	"github.com/zclconf/go-cty/cty/gocty"
 )
 
-// BuildData defines the data which is passed to the Go template engine
-type BuildData struct {
-	Locals    map[string]interface{}
-	Variables map[string]interface{}
-	Values    map[string]interface{}
-	Terrafile *parser.Terrafile
-	// RelativeDir is the relative directory from the root Terrafile to the
-	// Terrafile being built
-	RelativeDir string
-	// RelativePath is the relative path from the root Terrafile to the Terrafile
-	// being built
-	RelativePath string
-	// RelativeRootDir is the relative directory of the root Terrafile
-	RelativeRootDir string
-	// RootDir is the absolute directory of the root Terrafile
-	RootDir string
-}
-
 // Build takes a TerraConfig as input and builds all the templates and terraform
 // files
 func Build(config *parser.TerraConfig) error {
 	var buildErrs error
 	for _, terrafile := range config.RootModules() {
-		buildLocals, err := terrafile.LocalsAsGo()
-		if err != nil {
-			buildErrs = multierror.Append(buildErrs, fmt.Errorf("creating build locals: %w", err))
-			continue
-		}
-		buildVars, err := terrafile.VariablesAsGo()
-		if err != nil {
-			buildErrs = multierror.Append(buildErrs, fmt.Errorf("creating build variables: %w", err))
-			continue
-		}
-		buildValues, valuesErr := terrafile.ValuesAsGo()
-		if valuesErr != nil {
-			buildErrs = multierror.Append(buildErrs, fmt.Errorf("getting build values for terrafile \"%s\": %w", terrafile.Path, valuesErr))
-			continue
-		}
-		buildData := BuildData{
-			Locals:          buildLocals,
-			Variables:       buildVars,
-			Values:          buildValues,
-			Terrafile:       terrafile,
-			RelativePath:    terrafile.RelativePath(),
-			RelativeDir:     terrafile.RelativeDir(),
-			RelativeRootDir: terrafile.RelativeRootDir(),
-			RootDir:         terrafile.RootDir(),
-		}
 
-		if err := buildTerraplate(terrafile, config, &buildData); err != nil {
+		if err := buildTerraplate(terrafile, config); err != nil {
 			buildErrs = multierror.Append(buildErrs, fmt.Errorf("building Terraplate Terraform file: %w", err))
 			continue
 		}
 
-		if err := buildTemplates(terrafile, buildData); err != nil {
+		if err := buildTemplates(terrafile); err != nil {
 			buildErrs = multierror.Append(buildErrs, fmt.Errorf("building templates: %w", err))
 			continue
 		}
@@ -86,12 +41,25 @@ func Build(config *parser.TerraConfig) error {
 }
 
 // buildTemplates builds the templates associated with the given terrafile
-func buildTemplates(terrafile *parser.Terrafile, buildData BuildData) error {
-	for _, tmpl := range terrafile.Templates {
-		target := filepath.Join(terrafile.Dir, tmpl.Target)
-		content := defaultTemplateHeader(terrafile, tmpl) + tmpl.Contents
-		if err := templateWrite(buildData, tmpl.Name, content, target); err != nil {
-			return fmt.Errorf("creating template %s in terrafile %s: %w", tmpl.Name, terrafile.RelativePath(), err)
+func buildTemplates(tf *parser.Terrafile) error {
+	for _, tmpl := range tf.Templates {
+		data, dataErr := tf.BuildData()
+		if dataErr != nil {
+			return fmt.Errorf("getting build data for %s: %w", tf.Path, dataErr)
+		}
+		if tmpl.ConditionAttr != "" {
+			condition, condErr := tmpl.Condition(data)
+			if condErr != nil {
+				return fmt.Errorf("evaluating condition for %s: %w", tf.Path, condErr)
+			}
+			if !condition {
+				continue
+			}
+		}
+		target := filepath.Join(tf.Dir, tmpl.Target)
+		content := defaultTemplateHeader(tf, tmpl) + tmpl.Contents
+		if err := parser.TemplateWrite(data, tmpl.Name, content, target); err != nil {
+			return fmt.Errorf("creating template %s in terrafile %s: %w", tmpl.Name, tf.RelativePath(), err)
 		}
 	}
 	return nil
@@ -99,7 +67,7 @@ func buildTemplates(terrafile *parser.Terrafile, buildData BuildData) error {
 
 // buildTerraplate builds the terraplate terraform file which contains the
 // variables (with defaults) and terraform block
-func buildTerraplate(terrafile *parser.Terrafile, config *parser.TerraConfig, buildData *BuildData) error {
+func buildTerraplate(terrafile *parser.Terrafile, config *parser.TerraConfig) error {
 	path := filepath.Join(terrafile.Dir, "terraplate.tf")
 	// Create the Terraform file
 	tfFile := hclwrite.NewEmptyFile()
@@ -178,36 +146,6 @@ func buildTerraplate(terrafile *parser.Terrafile, config *parser.TerraConfig, bu
 	defer file.Close()
 	if _, writeErr := file.Write(hclwrite.Format(hclwrite.Format(contents))); writeErr != nil {
 		return fmt.Errorf("writing file %s: %w", path, writeErr)
-	}
-	return nil
-}
-
-func templateWrite(buildData BuildData, name string, text string, target string) error {
-	tmpl, tmplErr := template.New(name).
-		Option("missingkey=error").
-		Funcs(builtinFuncs()).
-		Parse(text)
-	if tmplErr != nil {
-		return tmplErr
-	}
-	// Add option to error on missing keys
-	tmpl.Option("missingkey=error")
-
-	var rawContents bytes.Buffer
-	// Apply the template to the vars map and write the result to file.
-	if execErr := tmpl.Execute(&rawContents, buildData); execErr != nil {
-		return fmt.Errorf("executing template: %w", execErr)
-	}
-	// Format the contents to make it nice HCL
-	formattedContents := hclwrite.Format(rawContents.Bytes())
-
-	file, createErr := os.Create(target)
-	if createErr != nil {
-		return fmt.Errorf("creating file %s: %w", target, createErr)
-	}
-	defer file.Close()
-	if _, writeErr := file.Write(formattedContents); writeErr != nil {
-		return fmt.Errorf("writing file %s: %w", target, writeErr)
 	}
 	return nil
 }

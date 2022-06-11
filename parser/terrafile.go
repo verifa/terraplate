@@ -56,15 +56,6 @@ type Terrafile struct {
 	Children []*Terrafile
 }
 
-// TerraTemplate defines the template{} block within a Terrafile
-type TerraTemplate struct {
-	Name     string `hcl:",label"`
-	Contents string `hcl:"contents,attr"`
-	// Target defines the target file to generate.
-	// Defaults to the Name of the template with a ".tp.tf" extension
-	Target string `hcl:"target,optional"`
-}
-
 // TerraformBlock defines the terraform{} block within a Terrafile
 type TerraformBlock struct {
 	RequiredVersion        string                  `hcl:"required_version,optional"`
@@ -197,6 +188,31 @@ func (t *Terrafile) rootModules() []*Terrafile {
 		return nil
 	})
 	return terrafiles
+}
+
+func (t *Terrafile) BuildData() (*BuildData, error) {
+	buildLocals, err := t.LocalsAsGo()
+	if err != nil {
+		return nil, fmt.Errorf("creating build locals: %w", err)
+	}
+	buildVars, err := t.VariablesAsGo()
+	if err != nil {
+		return nil, fmt.Errorf("creating build variables: %w", err)
+	}
+	buildValues, valuesErr := t.ValuesAsGo()
+	if valuesErr != nil {
+		return nil, fmt.Errorf("getting build values for terrafile \"%s\": %w", t.Path, valuesErr)
+	}
+	return &BuildData{
+		Locals:          buildLocals,
+		Variables:       buildVars,
+		Values:          buildValues,
+		Terrafile:       t,
+		RelativePath:    t.RelativePath(),
+		RelativeDir:     t.RelativeDir(),
+		RelativeRootDir: t.RelativeRootDir(),
+		RootDir:         t.RootDir(),
+	}, nil
 }
 
 // RelativeRootDir returns the relative directory of the root Terrafile

@@ -36,7 +36,7 @@ const (
 	terraApply    terraCmd = "apply"
 	terraShowPlan terraCmd = "show"
 
-	DefaultJobs = 1
+	DefaultJobs = 4
 )
 
 func Run(config *parser.TerraConfig, opts ...func(r *TerraRun)) *Result {

@@ -38,9 +38,19 @@ the build command, for example.`,
 		for _, tf := range config.RootModules() {
 			fmt.Println("Root Module:", tf.Path)
 
+			data, dataErr := tf.BuildData()
+			if dataErr != nil {
+				return fmt.Errorf("getting build data for %s: %w", tf.Path, dataErr)
+			}
 			fmt.Println("Templates:")
 			for _, tmpl := range tf.Templates {
-				fmt.Printf(" - %s --> %s\n", tmpl.Name, tmpl.Target)
+				condition, condErr := tmpl.Condition(data)
+				if condErr != nil {
+					return fmt.Errorf("evaluating condition for template \"%s\" in %s: %w", tmpl.Name, tf.Path, condErr)
+				}
+				if condition {
+					fmt.Printf(" - %s --> %s\n", tmpl.Name, tmpl.Target)
+				}
 			}
 			fmt.Println("Variables:")
 			for name := range tf.Variables() {
