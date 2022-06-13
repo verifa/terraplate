@@ -1,0 +1,8 @@
+// Testing some variables override which don't have any effect
+// GH Issue: https://github.com/h-enk/getdoks.org/issues/271
+// GH Discussion: https://github.com/h-enk/doks/discussions/266
+
+$primary: #12345678;
+
+$color-btn-bg: #12345678;
+$color-btn-text: #12345678;
