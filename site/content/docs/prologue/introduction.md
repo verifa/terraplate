@@ -33,11 +33,11 @@ One page summary of how to start a new Doks project. [Quick Start →]({{< relre
 
 Terraplate traverses up and down from the working directory detecting Terraplate files (AKA "Terrafiles"), treating the Terrafiles without child Terrafiles as [Root Modules](https://www.terraform.io/language/modules#the-root-module) (i.e. if a Terrafile does not have any children, it's considered a "root module" where Terraform should be run).
 
-Terraplate builds Terraform files based on your provided Terraform templates (using the Go Templating engine).
+Terraplate builds Terraform files based on your provided Terraform templates (using the Go Templates).
 Define your Terraform configs once, and use Go Templates to substitute the values based on the different root modules.
 
 The built files are completely normal Terraform files that should be checked into Git and can be run either via the `terraform` CLI or using the `terraplate` CLI.
-This way you can write your own Terraform code manually, focusing only the resources you are creating and not on boilerplate (like backend, providers, configuration, etc).
+This way you can focus on writing your Terraform code that creates resources, and let Terraplate handle the boilerplate (like backend, providers, configuration, etc) based on your provided templates.
 
 The goal of Terraplate is to not do any magic: just plain (but DRY) Terraform, which means you can bring your own tools for static analysis, security, policies and testing.
 
@@ -54,8 +54,8 @@ Each Root Module must define it's own backend (state storage) and providers that
 
 There are existing techniques to help alleviate this, two notable mentions:
 
-1. [Terraform Workspaces](https://www.terraform.io/cli/workspaces): this only partially solves the issue when you have multiple environments (e.g. prod & dev) for the same infrastructure. Nonetheless, it helps reduce the amount of copied code. Subjectively, we also disagree with this approach as switching workspaces within directories becomes a chore and hinders productivity.
-2. [Terragrunt](https://terragrunt.gruntwork.io/): Terraplate would not exist without Terragrunt.Terragrunt inspired Terraplate and therefore it is no surprise that Terraplate has a similar feel. However, there are differences that we feel warranted the development of another tool. Check our [FAQ on the subject]({{< relref "../faq/terraplate-vs-terragrunt" >}}).
+1. [Terraform Workspaces](https://www.terraform.io/cli/workspaces): only solve the issue when you have multiple environments (e.g. prod & dev) for the same infrastructure, not multiple completely unrelated Root Modules. Nonetheless, it helps reduce the amount of copied code. Check the [FAQ on the subject]({{< relref "../faq/terraplate-vs-tf-workspaces" >}}).
+2. [Terragrunt](https://terragrunt.gruntwork.io/): Terraplate would not exist without Terragrunt.Terragrunt inspired Terraplate and therefore it is no surprise that Terraplate has a similar feel. However, there are differences that we feel warranted the development of another tool. Check the [FAQ on the subject]({{< relref "../faq/terraplate-vs-terragrunt" >}}).
 
 ## Who is it for
 
@@ -68,14 +68,11 @@ The two main benefits Terraplate brings is:
 1. Keeping your code DRY and more maintainable
 2. Developer productivity: not just less time writing boilerplate, but also running Terraform across all your Root Modules with a nice summary
 
-### Terraform users who want to avoid [Workspaces](https://www.terraform.io/cli/workspaces)
+### Terraform users who want to make [Workspaces](https://www.terraform.io/cli/workspaces) more DRY or avoid them
 
-If you don't find workspaces right for you, Terraplate can avoid lots of copy and paste and provide a better developer experience (avoid having to switch workspaces and instead switch directory). Terraform's own [documentation](https://www.terraform.io/language/state/workspaces#when-to-use-multiple-workspaces) also do not recommend workspaces in certain cases:
-
-> *Workspaces alone are not a suitable tool for system decomposition, because each subsystem should have its own separate configuration and backend, and will thus have its own distinct set of workspaces.*
-
-We know some people really enjoy workspaces, so opinions seem to vary and that's fine.
-Terraplate doesn't claim to be better, just an alternative that we prefer :)
+If you don't find workspaces completely solves the issue of DRY infra, or they are not right for you, Terraplate is worth considering.
+Terraplate is not a replacement, but something that can solve the same problem and be used together with workspaces.
+Check the [FAQ on the subject]({{< relref "../faq/terraplate-vs-tf-workspaces" >}}).
 
 ### Overcoming limitations of Terraform's dynamic behavior
 
