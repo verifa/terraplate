@@ -44,4 +44,4 @@ jobs:
       - name: Build
         run: mkdocs build
       - name: Publish
-        run: mkdocs gh-deploy
+        run: mkdocs gh-deploy --force
