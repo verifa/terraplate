@@ -211,7 +211,7 @@ touch local/staging/terraplate.hcl
 
 And something like the following in your `terraplate.hcl` file
 
-```terraform title="local/staging/terraplate.hcl
+```terraform title="local/staging/terraplate.hcl"
 
 locals {
   environment = "staging"
