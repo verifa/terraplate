@@ -2,7 +2,7 @@
 title: Introduction
 ---
 
-<img src="assets/images/terraplate-verifa.svg" alt="Terraplate logo" width="600" />
+<img src="assets/logo/terraplate-verifa.svg" alt="Terraplate logo" width="600" />
 
 Terraplate is a thin wrapper around [Terraform](https://terraform.io) to keep things DRY and improve the developer experience.
 

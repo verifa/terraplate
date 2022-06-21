@@ -1,4 +1,4 @@
-<img src="docs/assets/images/terraplate-verifa.svg" alt="Terraplate logo" width="600" />
+<img src="docs/assets/logo/terraplate-verifa.svg" alt="Terraplate logo" width="600" />
 
 > DRY Terraform with Go Templates
 

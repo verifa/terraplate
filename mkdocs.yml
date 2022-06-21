@@ -1,4 +1,4 @@
-site_name: Terraplate
+site_name: terraplate
 site_url: https://terraplate.verifa.io
 site_description: >-
   Terraplate is a thin wrapper around Terraform to keep things DRY and improve the developer experience.
@@ -13,8 +13,9 @@ copyright: Copyright &copy; 2022 Verifa
 # Theme
 theme:
   name: material
-  # logo: assets/images/logo.png
-  # favicon: assets/images/favicon.png
+
+  logo: assets/logo/terraplate-short-white.svg
+  favicon: assets/favicon.png
   font:
     text: Outfit
   features:
