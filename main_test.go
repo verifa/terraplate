@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/verifa/terraplate/builder"
 	"github.com/verifa/terraplate/parser"
 	"github.com/verifa/terraplate/runner"
 )
@@ -43,11 +42,10 @@ func TestMain(t *testing.T) {
 				Chdir: tc.dir,
 			})
 			require.NoError(t, err)
-			buildErr := builder.Build(config)
-			require.NoError(t, buildErr)
 
 			if !tc.skipTerraform {
 				runner := runner.Run(config,
+					runner.RunBuild(),
 					runner.RunValidate(),
 					runner.RunInit(),
 					runner.RunPlan(),

@@ -1,32 +1,72 @@
 package runner
 
 import (
-	"context"
 	"fmt"
-	"os"
+	"io"
+	"log"
 	"os/exec"
-	"os/signal"
-	"syscall"
 	"time"
 
+	"github.com/verifa/terraplate/builder"
 	"github.com/verifa/terraplate/parser"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
 
-func initCmd(run TerraRunOpts, tf *parser.Terrafile) *TaskResult {
-	var args []string
-	args = append(args, tfCleanExtraArgs(run.extraArgs)...)
-	return runCmd(tf, terraInit, args)
+type terraCmd string
+
+func (t terraCmd) Action() string {
+	switch t {
+	case terraBuild:
+		return "building"
+	case terraValidate:
+		return "validating"
+	case terraInit:
+		return "initializing"
+	case terraPlan:
+		return "planning"
+	case terraApply:
+		return "applying"
+	case terraShowPlan:
+		return "summarizing"
+	}
+	return "Unknown action"
 }
 
-func validateCmd(run TerraRunOpts, tf *parser.Terrafile) *TaskResult {
-	var args []string
-	args = append(args, tfCleanExtraArgs(run.extraArgs)...)
-	return runCmd(tf, terraValidate, args)
+const (
+	terraExe = "terraform"
+
+	terraBuild    terraCmd = "build"
+	terraValidate terraCmd = "validate"
+	terraInit     terraCmd = "init"
+	terraPlan     terraCmd = "plan"
+	terraApply    terraCmd = "apply"
+	terraShowPlan terraCmd = "show"
+)
+
+func buildCmd(opts TerraRunOpts, tf *parser.Terrafile) *TaskResult {
+	var task TaskResult
+	task.TerraCmd = terraBuild
+	task.Error = builder.BuildTerrafile(tf, &task.Output)
+	return &task
 }
 
-func planCmd(run TerraRunOpts, tf *parser.Terrafile) *TaskResult {
+func validateCmd(opts TerraRunOpts, tf *parser.Terrafile) *TaskResult {
+	var args []string
+	args = append(args, tfCleanExtraArgs(opts.extraArgs)...)
+	return runCmd(opts.out, tf, terraValidate, args)
+}
+
+func initCmd(opts TerraRunOpts, tf *parser.Terrafile) *TaskResult {
+	var args []string
+	if opts.initUpgrade {
+		args = append(args, "-upgrade")
+	}
+	args = append(args, tfCleanExtraArgs(opts.extraArgs)...)
+	return runCmd(opts.out, tf, terraInit, args)
+}
+
+func planCmd(opts TerraRunOpts, tf *parser.Terrafile) *TaskResult {
 	plan := tf.ExecBlock.PlanBlock
 
 	var args []string
@@ -40,11 +80,11 @@ func planCmd(run TerraRunOpts, tf *parser.Terrafile) *TaskResult {
 		)
 	}
 	args = append(args, tfCleanExtraArgs(tf.ExecBlock.ExtraArgs)...)
-	args = append(args, tfCleanExtraArgs(run.extraArgs)...)
-	return runCmd(tf, terraPlan, args)
+	args = append(args, tfCleanExtraArgs(opts.extraArgs)...)
+	return runCmd(opts.out, tf, terraPlan, args)
 }
 
-func showPlanCmd(run TerraRunOpts, tf *parser.Terrafile) *TaskResult {
+func showPlanCmd(opts TerraRunOpts, tf *parser.Terrafile) *TaskResult {
 	plan := tf.ExecBlock.PlanBlock
 	if plan.SkipOut {
 		return &TaskResult{
@@ -54,10 +94,10 @@ func showPlanCmd(run TerraRunOpts, tf *parser.Terrafile) *TaskResult {
 	}
 	var args []string
 	args = append(args, "-json", plan.Out)
-	return runCmd(tf, terraShowPlan, args)
+	return runCmd(opts.out, tf, terraShowPlan, args)
 }
 
-func applyCmd(run TerraRunOpts, tf *parser.Terrafile) *TaskResult {
+func applyCmd(opts TerraRunOpts, tf *parser.Terrafile) *TaskResult {
 	plan := tf.ExecBlock.PlanBlock
 
 	var args []string
@@ -66,35 +106,49 @@ func applyCmd(run TerraRunOpts, tf *parser.Terrafile) *TaskResult {
 		fmt.Sprintf("-input=%v", plan.Input),
 	)
 	args = append(args, tfCleanExtraArgs(tf.ExecBlock.ExtraArgs)...)
-	args = append(args, tfCleanExtraArgs(run.extraArgs)...)
+	args = append(args, tfCleanExtraArgs(opts.extraArgs)...)
 
 	if !plan.SkipOut {
 		args = append(args, plan.Out)
 	}
 
-	return runCmd(tf, terraApply, args)
+	return runCmd(opts.out, tf, terraApply, args)
 }
 
-func runCmd(tf *parser.Terrafile, tfCmd terraCmd, args []string) *TaskResult {
-	result := TaskResult{
+func runCmd(out io.Writer, tf *parser.Terrafile, tfCmd terraCmd, args []string) *TaskResult {
+	task := TaskResult{
 		TerraCmd: tfCmd,
 	}
 	cmdArgs := append(tfArgs(tf), string(tfCmd))
 	cmdArgs = append(cmdArgs, args...)
-	result.ExecCmd = exec.Command(terraExe, cmdArgs...)
+	task.ExecCmd = exec.Command(terraExe, cmdArgs...)
 
 	// Create channel and start progress printer
 	done := make(chan bool)
-	go printProgress(tf.RelativeDir(), tfCmd, done)
+	go printProgress(out, tf.Dir, tfCmd, done)
 	defer func() { done <- true }()
 
-	var runErr error
-	result.Output, runErr = result.ExecCmd.CombinedOutput()
+	pr, pw := io.Pipe()
+	defer pw.Close()
+	task.ExecCmd.Stdout = pw
+	task.ExecCmd.Stderr = pw
+
+	if err := task.ExecCmd.Start(); err != nil {
+		task.Error = fmt.Errorf("starting command: %w", err)
+		return &task
+	}
+	go func() {
+		if _, err := io.Copy(&task.Output, pr); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	runErr := task.ExecCmd.Wait()
 	if runErr != nil {
-		result.Error = fmt.Errorf("%s: running %s command", tf.RelativeDir(), tfCmd)
+		task.Error = fmt.Errorf("%s: running %s command", tf.Dir, tfCmd)
 	}
 
-	return &result
+	return &task
 }
 
 func tfArgs(tf *parser.Terrafile) []string {
@@ -115,27 +169,7 @@ func tfCleanExtraArgs(args []string) []string {
 	return cleanArgs
 }
 
-// listenTerminateSignals returns a context that will be cancelled if an interrupt
-// or termination signal is received. The context can be used to prevent further
-// runs from being scheduled
-func listenTerminateSignals() context.Context {
-	ctx, cancel := context.WithCancel(context.Background())
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		for {
-			<-signals
-			fmt.Println("")
-			fmt.Println("Terraplate: Interrupt received.")
-			fmt.Println("Terraplate: Sending interrupt to all Terraform processes and cancelling any queued runs.")
-			// Cancel the context, to stop any more runs from being executed
-			cancel()
-		}
-	}()
-	return ctx
-}
-
-func printProgress(path string, cmd terraCmd, done <-chan bool) {
+func printProgress(out io.Writer, path string, cmd terraCmd, done <-chan bool) {
 	var (
 		interval = time.Second * 10
 		ticker   = time.NewTicker(interval)
@@ -143,12 +177,12 @@ func printProgress(path string, cmd terraCmd, done <-chan bool) {
 	)
 	defer ticker.Stop()
 	// Print initial line
-	fmt.Printf("%s: %s...\n", path, cases.Title(language.English).String(cmd.Action()))
+	fmt.Fprintf(out, "%s: %s...\n", path, cases.Title(language.English).String(cmd.Action()))
 	for {
 		select {
 		case <-ticker.C:
 			elapsed += interval
-			fmt.Printf("%s: Still %s... [%s elapsed]\n", path, cmd.Action(), elapsed)
+			fmt.Fprintf(out, "%s: Still %s... [%s elapsed]\n", path, cmd.Action(), elapsed)
 		case <-done:
 			return
 		}

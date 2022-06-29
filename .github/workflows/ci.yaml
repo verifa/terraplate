@@ -37,7 +37,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
       - name: Test
-        run: go test -failfast ./...
+        run: go test -v -failfast ./...
         # Build with GoReleaser (but don't release!).
         # This verifies that the GoReleaser config is valid and can build
       - name: Run GoReleaser

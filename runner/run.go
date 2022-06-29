@@ -1,124 +1,158 @@
 package runner
 
 import (
-	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/verifa/terraplate/parser"
 )
 
-var (
-	ErrRunInProgress = errors.New("run is already in progress")
+type state int
+
+const (
+	finishedState state = iota
+	queueState
+	runState
 )
+
+func newRunForQueue(tf *parser.Terrafile, opts TerraRunOpts) *TerraRun {
+
+	var r TerraRun
+	r.Terrafile = tf
+	r.Opts = opts
+	r.state = queueState
+	// Increment waitgroup so that we can wait on this run, even whilst it is
+	// queueing, until it is finished
+	r.wg.Add(1)
+	return &r
+}
 
 type TerraRun struct {
 	// Terrafile is the terrafile for which this run was executed
 	Terrafile *parser.Terrafile
+	Opts      TerraRunOpts
 
 	Tasks     []*TaskResult
 	Cancelled bool
-	Skipped   bool
 
 	Plan     *tfjson.Plan
 	PlanText []byte
 
-	mu        sync.RWMutex
-	isRunning bool
+	wg    sync.WaitGroup
+	state state
 }
 
-// Run performs the run for this TerraRun i.e. invoking Terraform
-func (r *TerraRun) Run(opts TerraRunOpts) error {
-	if startErr := r.startRun(); startErr != nil {
-		return startErr
-	}
+// Run performs a blocking run for this TerraRun i.e. invoking Terraform
+func (r *TerraRun) Run() {
+	r.Start()
+	r.Wait()
+}
+
+// Start performs a non-blocking run for this TerraRun i.e. invoking Terraform
+func (r *TerraRun) Start() {
+	r.startRun()
+	defer r.endRun()
 
 	tf := r.Terrafile
-	// Check if root module should be skipped or not
-	if tf.ExecBlock.Skip {
-		fmt.Printf("%s: Skipping...\n", tf.RelativeDir())
-		r.Skipped = true
-		return nil
-	}
 
-	if opts.init {
-		taskResult := initCmd(opts, tf)
+	if r.Opts.build {
+		taskResult := buildCmd(r.Opts, tf)
 		r.Tasks = append(r.Tasks, taskResult)
 		if taskResult.HasError() {
-			return nil
+			return
 		}
 	}
-	if opts.validate {
-		taskResult := validateCmd(opts, tf)
+	if r.Opts.validate {
+		taskResult := validateCmd(r.Opts, tf)
 		r.Tasks = append(r.Tasks, taskResult)
 		if taskResult.HasError() {
-			return nil
+			return
 		}
 	}
-	if opts.plan {
-		taskResult := planCmd(opts, tf)
+	if r.Opts.init {
+		taskResult := initCmd(r.Opts, tf)
 		r.Tasks = append(r.Tasks, taskResult)
 		if taskResult.HasError() {
-			return nil
+			return
 		}
 	}
-	if opts.showPlan {
-		taskResult := showPlanCmd(opts, tf)
+	if r.Opts.plan {
+		taskResult := planCmd(r.Opts, tf)
+		r.Tasks = append(r.Tasks, taskResult)
+		if taskResult.HasError() {
+			return
+		}
+	}
+	if r.Opts.showPlan {
+		taskResult := showPlanCmd(r.Opts, tf)
 		r.ProcessPlan(taskResult)
 		r.Tasks = append(r.Tasks, taskResult)
 		if taskResult.HasError() {
-			return nil
+			return
 		}
 	}
-	if opts.apply {
-		taskResult := applyCmd(opts, tf)
+	if r.Opts.apply {
+		taskResult := applyCmd(r.Opts, tf)
 		r.Tasks = append(r.Tasks, taskResult)
 		if taskResult.HasError() {
-			return nil
+			return
 		}
 	}
-
-	r.endRun()
-	return nil
 }
 
-func (r *TerraRun) startRun() error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.isRunning {
-		return ErrRunInProgress
-	}
-	r.isRunning = true
-	return nil
+// Wait blocks and waits for the run to be finished
+func (r *TerraRun) Wait() {
+	r.wg.Wait()
+}
+
+func (r *TerraRun) startRun() {
+	r.state = runState
 }
 
 func (r *TerraRun) endRun() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.isRunning = false
+	defer r.wg.Done()
+	r.state = finishedState
 }
 
-// PlanSummary returns a string summary to show after a plan
-func (r *TerraRun) PlanSummary() string {
-	// If the run had errors, we want to show that
-	if r.HasError() {
+func (r *TerraRun) Log(fullLog bool) string {
+	var log strings.Builder
+	log.WriteString(boldColor.Sprintf("Run for %s\n\n", r.Terrafile.Dir))
+
+	for _, task := range r.Tasks {
+		if fullLog || task.IsRelevant() {
+			log.WriteString(task.Log())
+		}
+	}
+	return log.String()
+}
+
+// Summary returns a string summary to show after a plan
+func (r *TerraRun) Summary() string {
+	switch {
+	case r.HasError():
 		return errorColor.Sprint("Error occurred")
-	}
-	if r.Cancelled {
+	case r.Cancelled:
 		return runCancelled.Sprint("Cancelled")
+	case r.IsApplied():
+		return boldColor.Sprint("Applied")
+	case r.IsPlanned():
+		if !r.HasPlan() {
+			return planNotAvailable.Sprint("Plan not available")
+		}
+		return r.Drift().Diff()
+	case r.IsInitd():
+		return boldColor.Sprint("Initialized")
+	case r.IsBuilt():
+		return boldColor.Sprint("Built")
+	default:
+		return "Unknown status"
 	}
-	if r.Skipped {
-		return "Skipped"
-	}
-	if !r.HasPlan() {
-		return planNotAvailable.Sprint("Plan not available")
-	}
-	return r.Drift().Diff()
 }
 
 func (r *TerraRun) Drift() *Drift {
-	if !r.HasPlan() {
+	if r == nil || !r.HasPlan() {
 		// Return an empty drift which means no drift (though user should check
 		// if plan was available as well)
 		return &Drift{}
@@ -126,7 +160,77 @@ func (r *TerraRun) Drift() *Drift {
 	return driftFromPlan(r.Plan)
 }
 
+func (r *TerraRun) IsApplied() bool {
+	if r == nil {
+		return false
+	}
+	if r.state != finishedState {
+		return false
+	}
+	for _, task := range r.Tasks {
+		if task.TerraCmd == terraApply {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *TerraRun) IsPlanned() bool {
+	if r == nil {
+		return false
+	}
+	if r.state != finishedState {
+		return false
+	}
+	for _, task := range r.Tasks {
+		if task.TerraCmd == terraPlan {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *TerraRun) IsInitd() bool {
+	if r == nil {
+		return false
+	}
+	if r.state != finishedState {
+		return false
+	}
+	for _, task := range r.Tasks {
+		if task.TerraCmd == terraInit {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *TerraRun) IsBuilt() bool {
+	if r == nil {
+		return false
+	}
+	if r.state != finishedState {
+		return false
+	}
+	for _, task := range r.Tasks {
+		if task.TerraCmd == terraBuild {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *TerraRun) IsRunning() bool {
+	if r == nil {
+		return false
+	}
+	return r.state == queueState || r.state == runState
+}
+
 func (r *TerraRun) HasError() bool {
+	if r == nil {
+		return false
+	}
 	for _, task := range r.Tasks {
 		if task.HasError() {
 			return true
@@ -147,7 +251,7 @@ func (r *TerraRun) Errors() []error {
 
 func (r *TerraRun) HasRelevantTasks() bool {
 	for _, task := range r.Tasks {
-		if task.HasRelevance() {
+		if task.IsRelevant() {
 			return true
 		}
 	}
@@ -155,6 +259,9 @@ func (r *TerraRun) HasRelevantTasks() bool {
 }
 
 func (r *TerraRun) HasPlan() bool {
+	if r == nil {
+		return false
+	}
 	return r.Plan != nil
 }
 
@@ -171,7 +278,7 @@ func (r *TerraRun) ProcessPlan(task *TaskResult) error {
 		return nil
 	}
 	var tfPlan tfjson.Plan
-	if err := tfPlan.UnmarshalJSON(task.Output); err != nil {
+	if err := tfPlan.UnmarshalJSON(task.Output.Bytes()); err != nil {
 		return fmt.Errorf("unmarshalling terraform show plan output: %w", err)
 	}
 

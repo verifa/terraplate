@@ -17,56 +17,61 @@ package cmd
 
 import (
 	"fmt"
+	"io"
+	"os"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"github.com/verifa/terraplate/parser"
 	"github.com/verifa/terraplate/runner"
+	"github.com/verifa/terraplate/tui"
 )
 
-var (
-	planSkipBuild bool
-	runInit       bool
-	planJobs      int
-)
-
-// planCmd represents the plan command
-var planCmd = &cobra.Command{
-	Use:   "plan",
-	Short: "Runs terraform plan on all subdirectories",
-	Long:  `Runs terraform plan on all subdirectories.`,
+// devCmd represents the plan command
+var devCmd = &cobra.Command{
+	Use:   "dev",
+	Short: "Enters dev mode which launches a Terminal UI for Terraplate",
+	Long:  `Enters dev mode which launches a Terminal UI for building and running Terraplate root modules.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Parse
 		config, err := parser.Parse(&config.ParserConfig)
 		if err != nil {
 			return fmt.Errorf("parsing terraplate: %w", err)
 		}
-		fmt.Print(terraformStartMessage)
+
+		// Dev mode
+		fmt.Print(devStartMessage)
 		runOpts := []func(r *runner.TerraRunOpts){
+			runner.RunBuild(),
+			runner.RunInit(),
 			runner.RunPlan(),
 			runner.RunShowPlan(),
 			runner.Jobs(planJobs),
-		}
-		if !planSkipBuild {
-			runOpts = append(runOpts, runner.RunBuild())
+			// Discard any output from the runner itself.
+			// This does not discard the Terraform output.
+			runner.Output(io.Discard),
 		}
 		if runInit {
 			runOpts = append(runOpts, runner.RunInit())
 		}
 		runOpts = append(runOpts, runner.ExtraArgs(args))
-		runner := runner.Run(config, runOpts...)
+		runner := runner.New(config, runOpts...)
 
-		// Print log
-		fmt.Println(runner.Log())
-
-		fmt.Println(runner.Summary())
-
-		return runner.Errors()
+		p := tea.NewProgram(
+			tui.New(runner),
+			tea.WithAltScreen(),
+			tea.WithMouseCellMotion(),
+		)
+		if err := p.Start(); err != nil {
+			fmt.Printf("Alas, there's been an error: %v", err)
+			os.Exit(1)
+		}
+		return nil
 	},
 }
 
 func init() {
-	RootCmd.AddCommand(planCmd)
+	RootCmd.AddCommand(devCmd)
 
-	planCmd.Flags().BoolVar(&planSkipBuild, "skip-build", false, "Skip build process (default: false)")
-	planCmd.Flags().BoolVar(&runInit, "init", false, "Run terraform init also")
-	planCmd.Flags().IntVarP(&planJobs, "jobs", "j", runner.DefaultJobs, "Number of concurrent terraform jobs to run at one time")
+	devCmd.Flags().IntVarP(&planJobs, "jobs", "j", runner.DefaultJobs, "Number of concurrent terraform jobs to run at one time")
 }

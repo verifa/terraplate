@@ -19,7 +19,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/verifa/terraplate/builder"
 	"github.com/verifa/terraplate/notify"
 	"github.com/verifa/terraplate/parser"
 	"github.com/verifa/terraplate/runner"
@@ -58,15 +57,10 @@ var driftCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("parsing terraplate: %w", err)
 		}
-		// Build
-		fmt.Print(buildStartMessage)
-		if err := builder.Build(config); err != nil {
-			return err
-		}
-		fmt.Print(buildSuccessMessage)
 		// Plan
 		fmt.Print(terraformStartMessage)
 		runOpts := []func(r *runner.TerraRunOpts){
+			runner.RunBuild(),
 			runner.RunInit(),
 			runner.RunPlan(),
 			runner.RunShowPlan(),
@@ -92,7 +86,7 @@ var driftCmd = &cobra.Command{
 			}
 		}
 
-		fmt.Print(runner.PlanSummary())
+		fmt.Print(runner.Summary())
 		return nil
 	},
 }

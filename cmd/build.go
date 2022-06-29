@@ -19,7 +19,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/verifa/terraplate/builder"
 	"github.com/verifa/terraplate/parser"
 	"github.com/verifa/terraplate/runner"
 )
@@ -40,23 +39,19 @@ templates and configurations detected.`,
 			return fmt.Errorf("parsing terraplate: %w", err)
 		}
 
-		if err := builder.Build(config); err != nil {
-			return fmt.Errorf("building terraplate: %w", err)
+		runOpts := []func(r *runner.TerraRunOpts){
+			runner.RunBuild(),
 		}
-
-		fmt.Print(buildSuccessMessage)
-
 		if doValidate {
-			runner := runner.Run(config, runner.RunInit(), runner.RunValidate())
-			// Print log
-			fmt.Println(runner.Log())
-
-			if runner.HasError() {
-				return runner.Errors()
-			}
+			runOpts = append(runOpts, runner.RunValidate())
 		}
+		runOpts = append(runOpts, runner.ExtraArgs(args))
+		runner := runner.Run(config, runOpts...)
 
-		return nil
+		fmt.Println(runner.Log())
+		fmt.Println(runner.Summary())
+
+		return runner.Errors()
 	},
 }
 

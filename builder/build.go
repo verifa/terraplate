@@ -2,47 +2,44 @@ package builder
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
 
-	"github.com/hashicorp/go-multierror"
+	"github.com/fatih/color"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/verifa/terraplate/parser"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 )
 
-// Build takes a TerraConfig as input and builds all the templates and terraform
-// files
-func Build(config *parser.TerraConfig) error {
-	var buildErrs error
-	for _, terrafile := range config.RootModules() {
+var errorColor = color.New(color.FgRed, color.Bold)
 
-		if err := buildTerraplate(terrafile, config); err != nil {
-			buildErrs = multierror.Append(buildErrs, fmt.Errorf("building Terraplate Terraform file: %w", err))
-			continue
-		}
-
-		if err := buildTemplates(terrafile); err != nil {
-			buildErrs = multierror.Append(buildErrs, fmt.Errorf("building templates: %w", err))
-			continue
-		}
-
-		fmt.Printf("%s: Built %d templates\n", terrafile.RelativeDir(), len(terrafile.Templates))
+// BuildTerrafile takes an input Terrafile and builds it, writing any output
+// to the provided io.Writer
+func BuildTerrafile(tf *parser.Terrafile, out io.Writer) error {
+	if err := buildTerraplate(tf, out); err != nil {
+		buildErr := fmt.Errorf("building Terraplate Terraform file: %w", err)
+		fmt.Fprintf(out, "\n%s: %v", errorColor.Sprint("Error"), buildErr)
+		return buildErr
 	}
 
-	if buildErrs != nil {
-		return fmt.Errorf("building root modules: %s", buildErrs)
+	if err := buildTemplates(tf, out); err != nil {
+		buildErr := fmt.Errorf("building templates: %w", err)
+		fmt.Fprintf(out, "\n%s: %v", errorColor.Sprint("Error"), buildErr)
+		return buildErr
 	}
-
 	return nil
 }
 
 // buildTemplates builds the templates associated with the given terrafile
-func buildTemplates(tf *parser.Terrafile) error {
+func buildTemplates(tf *parser.Terrafile, out io.Writer) error {
 	for _, tmpl := range tf.Templates {
+		target := filepath.Join(tf.Dir, tmpl.Target)
+		fmt.Fprintf(out, "Building template %s to %s\n", tmpl.Name, target)
+
 		data, dataErr := tf.BuildData()
 		if dataErr != nil {
 			return fmt.Errorf("getting build data for %s: %w", tf.Path, dataErr)
@@ -56,7 +53,7 @@ func buildTemplates(tf *parser.Terrafile) error {
 				continue
 			}
 		}
-		target := filepath.Join(tf.Dir, tmpl.Target)
+
 		content := defaultTemplateHeader(tf, tmpl) + tmpl.Contents
 		if err := parser.TemplateWrite(data, tmpl.Name, content, target); err != nil {
 			return fmt.Errorf("creating template %s in terrafile %s: %w", tmpl.Name, tf.RelativePath(), err)
@@ -67,8 +64,11 @@ func buildTemplates(tf *parser.Terrafile) error {
 
 // buildTerraplate builds the terraplate terraform file which contains the
 // variables (with defaults) and terraform block
-func buildTerraplate(terrafile *parser.Terrafile, config *parser.TerraConfig) error {
+func buildTerraplate(terrafile *parser.Terrafile, out io.Writer) error {
+
 	path := filepath.Join(terrafile.Dir, "terraplate.tf")
+	fmt.Fprintf(out, "Building terraplate.tf file to %s\n", path)
+
 	// Create the Terraform file
 	tfFile := hclwrite.NewEmptyFile()
 
