@@ -17,8 +17,10 @@ terraplate init [flags]
 ### Options
 
 ```
-  -h, --help       help for init
-  -j, --jobs int   Number of concurrent terraform jobs to run at one time (default 4)
+  -h, --help         help for init
+  -j, --jobs int     Number of concurrent terraform jobs to run at one time (default 4)
+      --skip-build   Skip build process (default: false)
+  -u, --upgrade      Perform upgrade when initializing
 ```
 
 ### Options inherited from parent commands

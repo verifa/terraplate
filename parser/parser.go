@@ -43,8 +43,15 @@ func Parse(config *Config) (*TerraConfig, error) {
 		return nil, errors.New("no terraplate files found")
 	}
 
+	// Get the absolute path to set as working directory
+	absPath, absErr := filepath.Abs(config.Chdir)
+	if absErr != nil {
+		return nil, fmt.Errorf("getting absolute path for working directory %s: %w", config.Chdir, absErr)
+	}
+
 	tfc := TerraConfig{
-		Terrafiles: terrafiles,
+		Terrafiles:       terrafiles,
+		WorkingDirectory: absPath,
 	}
 
 	// Terrafiles inherit values from ancestors. Let's resolve the root modules

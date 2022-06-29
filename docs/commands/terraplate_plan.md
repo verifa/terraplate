@@ -17,10 +17,11 @@ terraplate plan [flags]
 ### Options
 
 ```
-      --build      Run build process also
-  -h, --help       help for plan
-      --init       Run terraform init also
-  -j, --jobs int   Number of concurrent terraform jobs to run at one time (default 4)
+      --dev          Start dev mode after plan finishes
+  -h, --help         help for plan
+      --init         Run terraform init also
+  -j, --jobs int     Number of concurrent terraform jobs to run at one time (default 4)
+      --skip-build   Skip build process (default: false)
 ```
 
 ### Options inherited from parent commands

@@ -17,17 +17,21 @@ package cmd
 
 import (
 	"fmt"
+	"io"
+	"os"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
-	"github.com/verifa/terraplate/builder"
 	"github.com/verifa/terraplate/parser"
 	"github.com/verifa/terraplate/runner"
+	"github.com/verifa/terraplate/tui"
 )
 
 var (
-	runBuild bool
-	runInit  bool
-	planJobs int
+	planSkipBuild bool
+	runInit       bool
+	planJobs      int
+	planDevMode   bool
 )
 
 // planCmd represents the plan command
@@ -40,38 +44,62 @@ var planCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("parsing terraplate: %w", err)
 		}
-		if runBuild {
-			fmt.Print(buildStartMessage)
-			if err := builder.Build(config); err != nil {
-				return err
-			}
-			fmt.Print(buildSuccessMessage)
-		}
 		fmt.Print(terraformStartMessage)
 		runOpts := []func(r *runner.TerraRunOpts){
 			runner.RunPlan(),
 			runner.RunShowPlan(),
 			runner.Jobs(planJobs),
 		}
+		if !planSkipBuild {
+			runOpts = append(runOpts, runner.RunBuild())
+		}
 		if runInit {
 			runOpts = append(runOpts, runner.RunInit())
 		}
 		runOpts = append(runOpts, runner.ExtraArgs(args))
-		runner := runner.Run(config, runOpts...)
+		r := runner.Run(config, runOpts...)
+
+		if planDevMode {
+			// Start dev mode
+			fmt.Print(devStartMessage)
+			runOpts := []func(r *runner.TerraRunOpts){
+				runner.RunBuild(),
+				runner.RunPlan(),
+				runner.RunShowPlan(),
+				runner.Jobs(planJobs),
+				// Discard any output from the runner itself.
+				// This does not discard the Terraform output.
+				runner.Output(io.Discard),
+			}
+			// Override options in runner
+			r.Opts = runner.NewOpts(runOpts...)
+			p := tea.NewProgram(
+				tui.New(r),
+				tea.WithAltScreen(),
+				tea.WithMouseCellMotion(),
+			)
+			if err := p.Start(); err != nil {
+				fmt.Printf("Alas, there's been an error: %v", err)
+				os.Exit(1)
+			}
+
+			return nil
+		}
 
 		// Print log
-		fmt.Println(runner.Log())
+		fmt.Println(r.Log())
 
-		fmt.Println(runner.PlanSummary())
+		fmt.Println(r.Summary())
 
-		return runner.Errors()
+		return r.Errors()
 	},
 }
 
 func init() {
 	RootCmd.AddCommand(planCmd)
 
-	planCmd.Flags().BoolVar(&runBuild, "build", false, "Run build process also")
+	planCmd.Flags().BoolVar(&planSkipBuild, "skip-build", false, "Skip build process (default: false)")
 	planCmd.Flags().BoolVar(&runInit, "init", false, "Run terraform init also")
+	planCmd.Flags().BoolVar(&planDevMode, "dev", false, "Start dev mode after plan finishes")
 	planCmd.Flags().IntVarP(&planJobs, "jobs", "j", runner.DefaultJobs, "Number of concurrent terraform jobs to run at one time")
 }

@@ -1,4 +1,5 @@
 arrange:
 
 - multiple-root-modules.md
+- dev-mode.md
 - drift-slack-notifications.md

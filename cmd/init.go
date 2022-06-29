@@ -23,7 +23,11 @@ import (
 	"github.com/verifa/terraplate/runner"
 )
 
-var initJobs int
+var (
+	initJobs      int
+	initSkipBuild bool
+	initUpgrade   bool
+)
 
 // initCmd represents the init command
 var initCmd = &cobra.Command{
@@ -35,9 +39,23 @@ var initCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("parsing terraplate: %w", err)
 		}
-		runner := runner.Run(config, runner.RunInit(), runner.Jobs(initJobs), runner.ExtraArgs(args))
-		// Print log
+		runOpts := []func(r *runner.TerraRunOpts){
+			runner.RunInit(),
+			runner.Jobs(initJobs),
+			runner.ExtraArgs(args),
+		}
+
+		if !initSkipBuild {
+			runOpts = append(runOpts, runner.RunBuild())
+		}
+		if initUpgrade {
+			runOpts = append(runOpts, runner.RunInitUpgrade())
+		}
+
+		runOpts = append(runOpts, runner.ExtraArgs(args))
+		runner := runner.Run(config, runOpts...)
 		fmt.Println(runner.Log())
+		fmt.Println(runner.Summary())
 
 		return runner.Errors()
 	},
@@ -46,5 +64,7 @@ var initCmd = &cobra.Command{
 func init() {
 	RootCmd.AddCommand(initCmd)
 
+	initCmd.Flags().BoolVar(&initSkipBuild, "skip-build", false, "Skip build process (default: false)")
+	initCmd.Flags().BoolVarP(&initUpgrade, "upgrade", "u", false, "Perform upgrade when initializing")
 	initCmd.Flags().IntVarP(&initJobs, "jobs", "j", runner.DefaultJobs, "Number of concurrent terraform jobs to run at one time")
 }

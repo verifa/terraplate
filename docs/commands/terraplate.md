@@ -25,6 +25,7 @@ Terraform configurations like providers and backend.
 
 * [terraplate apply](terraplate_apply.md)	 - Runs terraform apply on all subdirectories
 * [terraplate build](terraplate_build.md)	 - Build Terraform files based your Terrafiles
+* [terraplate dev](terraplate_dev.md)	 - Enters dev mode which launches a Terminal UI for Terraplate
 * [terraplate drift](terraplate_drift.md)	 - Detect drift in your infrastructure (experimental feature)
 * [terraplate init](terraplate_init.md)	 - Runs terraform init on all subdirectories
 * [terraplate parse](terraplate_parse.md)	 - Parse the terraplate files and print a summary

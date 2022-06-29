@@ -49,7 +49,7 @@ There are existing approaches to running Terraform (e.g. init, plan, apply) over
 Terraplate's templating is compatible with all the approaches above (in fact Terraplate can template your Terragrunt files! But let's not go there...).
 That means you can use Terraplate for **just templating and keeping things DRY** but it also comes with a thin wrapper for invoking Terraform (similar to Terragrunt).
 
-### Drift detection (coming soon)
+### Drift detection
 
 Terraplate can be run on a regular basis and detect drift in your infrastructure and create notifications.
 Currenly only Slack will be supported, but we welcome ideas/suggestions for more!
@@ -64,6 +64,12 @@ The two main benefits Terraplate brings is:
 
 1. Keeping your code DRY and more maintainable
 2. Improve developer productivity by spending less time writing boilerplate and running Terraform across all your Root Modules
+
+#### Dev mode
+
+Terraplate has a "dev" mode which launches a Terminal UI, for browsing Root modules and running commands:
+
+![dev-mode](../assets/images/tp-dev-mode.png)
 
 ### Terraform users who want to make [Workspaces](https://www.terraform.io/cli/workspaces) more DRY or avoid them
 

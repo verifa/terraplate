@@ -7,7 +7,8 @@ import (
 )
 
 type TerraConfig struct {
-	Terrafiles []*Terrafile
+	Terrafiles       []*Terrafile
+	WorkingDirectory string
 }
 
 // RootModules returns the Terrafiles that are considered root modules
