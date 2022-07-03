@@ -1,9 +1,14 @@
 package runner
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/remeh/sizedwaitgroup"
@@ -48,6 +53,9 @@ func Run(config *parser.TerraConfig, opts ...func(r *TerraRun)) *Result {
 		opt(&run)
 	}
 
+	// Listen to terminate calls (i.e. SIGINT) instead of exiting immediately
+	ctx := listenTerminateSignals()
+
 	var (
 		rootMods   = config.RootModules()
 		runResults = make([]*RunResult, len(rootMods))
@@ -56,7 +64,17 @@ func Run(config *parser.TerraConfig, opts ...func(r *TerraRun)) *Result {
 	// jobs that are allowed
 	swg := sizedwaitgroup.New(run.jobs)
 	for index, tf := range config.RootModules() {
-		swg.Add()
+
+		addErr := swg.AddWithContext(ctx)
+		// Check if the process has been cancelled.
+		if errors.Is(addErr, context.Canceled) {
+			// Set an empty RunResult
+			runResults[index] = &RunResult{
+				Terrafile: tf,
+				Cancelled: true,
+			}
+			continue
+		}
 		tf := tf
 		index := index
 
@@ -65,6 +83,7 @@ func Run(config *parser.TerraConfig, opts ...func(r *TerraRun)) *Result {
 			result := runCmds(&run, tf)
 			runResults[index] = result
 		}()
+
 	}
 	swg.Wait()
 
@@ -277,6 +296,26 @@ func tfCleanExtraArgs(args []string) []string {
 		}
 	}
 	return cleanArgs
+}
+
+// listenTerminateSignals returns a context that will be cancelled if an interrupt
+// or termination signal is received. The context can be used to prevent further
+// runs from being scheduled
+func listenTerminateSignals() context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		for {
+			<-signals
+			fmt.Println("")
+			fmt.Println("Terraplate: Interrupt received.")
+			fmt.Println("Terraplate: Sending interrupt to all Terraform processes and cancelling any queued runs.")
+			// Cancel the context, to stop any more runs from being executed
+			cancel()
+		}
+	}()
+	return ctx
 }
 
 func printProgress(path string, cmd terraCmd, done <-chan bool) {

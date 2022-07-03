@@ -16,6 +16,7 @@ import (
 var (
 	boldColor          = color.New(color.Bold)
 	errorColor         = color.New(color.FgRed, color.Bold)
+	runCancelled       = color.New(color.FgRed, color.Bold)
 	planNotAvailable   = color.New(color.FgMagenta, color.Bold)
 	planNoChangesColor = color.New(color.FgGreen, color.Bold)
 	planCreateColor    = color.New(color.FgGreen, color.Bold)
@@ -129,8 +130,9 @@ type RunResult struct {
 	// Terrafile is the terrafile for which this run was executed
 	Terrafile *parser.Terrafile
 
-	Tasks   []*TaskResult
-	Skipped bool
+	Tasks     []*TaskResult
+	Cancelled bool
+	Skipped   bool
 
 	Plan     *tfjson.Plan
 	PlanText []byte
@@ -141,6 +143,9 @@ func (r *RunResult) PlanSummary() string {
 	// If the run had errors, we want to show that
 	if r.HasError() {
 		return errorColor.Sprint("Error occurred")
+	}
+	if r.Cancelled {
+		return runCancelled.Sprint("Cancelled")
 	}
 	if r.Skipped {
 		return "Skipped"
