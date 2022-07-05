@@ -4,6 +4,7 @@
 *.dll
 *.so
 *.dylib
+*.DS_Store
 
 # Test binary, built with `go test -c`
 *.test
@@ -42,6 +43,9 @@ tutorials/**/*.*
 # But... do ignore the generated files
 tutorials/**/*.tp.tf
 tutorials/**/terraplate.tf
+
+# Ignore any default plans that exist in a testData directory
+**/testData/**/tfplan
 
 # goreleaser build directory
 dist/

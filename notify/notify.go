@@ -88,14 +88,14 @@ func (f NotifyFilter) IsValid() bool {
 	return false
 }
 
-// ShouldNotify takes a result and returns a bool whether the notification should
+// ShouldNotify takes a runner and returns a bool whether the notification should
 // be sent, or not
-func (f NotifyFilter) ShouldNotify(result *runner.Result) bool {
+func (f NotifyFilter) ShouldNotify(runner *runner.Runner) bool {
 	switch f {
 	case NotifyFilterAll:
 		return true
 	case NotifyFilterDrift:
-		if result.HasError() || result.HasDrift() {
+		if runner.HasError() || runner.HasDrift() {
 			return true
 		}
 	}

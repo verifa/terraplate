@@ -11,9 +11,9 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
-// defaultTerrafile sets default values for a Terrafile that are used when
+// DefaultTerrafile sets default values for a Terrafile that are used when
 // parsing a new Terrafile
-var defaultTerrafile = Terrafile{
+var DefaultTerrafile = Terrafile{
 	// BuildBlock: &BuildBlock{},
 	ExecBlock: &ExecBlock{
 		PlanBlock: &ExecPlanBlock{

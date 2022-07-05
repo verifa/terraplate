@@ -52,7 +52,7 @@ func (c *TerraConfig) MergeTerrafiles() error {
 
 	for _, rootTf := range rootTfs {
 		// Set defaults for root terrafile
-		if err := mergo.Merge(rootTf, defaultTerrafile); err != nil {
+		if err := mergo.Merge(rootTf, DefaultTerrafile); err != nil {
 			return fmt.Errorf("setting defaults for root terrafile %s: %w", rootTf.Path, err)
 		}
 

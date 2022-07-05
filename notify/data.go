@@ -16,16 +16,16 @@ var (
 )
 
 type Data struct {
-	Result     *runner.Result
+	Runner     *runner.Runner
 	Repo       *Repo
 	ResultsURL string
 }
 
 func (d Data) StatusColor() string {
 	switch {
-	case d.Result.HasError():
+	case d.Runner.HasError():
 		return statusErrorColor
-	case d.Result.HasDrift():
+	case d.Runner.HasDrift():
 		return statusDrftColor
 	}
 	return statusSyncColor

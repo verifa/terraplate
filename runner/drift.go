@@ -6,6 +6,27 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 )
 
+func driftFromPlan(plan *tfjson.Plan) *Drift {
+	var drift Drift
+	for _, change := range plan.ResourceChanges {
+		for _, action := range change.Change.Actions {
+			switch action {
+			case tfjson.ActionCreate:
+				drift.AddResources = append(drift.AddResources, change)
+			case tfjson.ActionDelete:
+				drift.DestroyResources = append(drift.DestroyResources, change)
+			case tfjson.ActionUpdate:
+				drift.ChangeResources = append(drift.ChangeResources, change)
+			default:
+				// We don't care about other actions for the summary
+			}
+
+		}
+	}
+
+	return &drift
+}
+
 type Drift struct {
 	AddResources     []*tfjson.ResourceChange
 	ChangeResources  []*tfjson.ResourceChange

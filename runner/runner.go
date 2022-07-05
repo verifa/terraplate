@@ -4,13 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"os/exec"
-	"os/signal"
 	"strings"
-	"syscall"
-	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/remeh/sizedwaitgroup"
 	"github.com/verifa/terraplate/parser"
 )
@@ -44,97 +40,97 @@ const (
 	DefaultJobs = 4
 )
 
-func Run(config *parser.TerraConfig, opts ...func(r *TerraRun)) *Result {
-	// Initialise TerraRun with defaults
-	run := TerraRun{
+func New(config *parser.TerraConfig, opts ...func(r *TerraRunOpts)) *Runner {
+	// Initialise TerraRunOpts with defaults
+	runOpts := TerraRunOpts{
 		jobs: DefaultJobs,
 	}
 	for _, opt := range opts {
-		opt(&run)
+		opt(&runOpts)
 	}
 
-	// Listen to terminate calls (i.e. SIGINT) instead of exiting immediately
-	ctx := listenTerminateSignals()
+	runner := Runner{
+		ctx:    listenTerminateSignals(),
+		swg:    sizedwaitgroup.New(runOpts.jobs),
+		opts:   runOpts,
+		config: config,
+	}
 
+	// Initialize result
 	var (
-		rootMods   = config.RootModules()
-		runResults = make([]*RunResult, len(rootMods))
+		rootMods = config.RootModules()
+		runs     = make([]*TerraRun, len(rootMods))
 	)
-	// Start terraform runs in different root modules based on number of concurrent
-	// jobs that are allowed
-	swg := sizedwaitgroup.New(run.jobs)
 	for index, tf := range config.RootModules() {
-
-		addErr := swg.AddWithContext(ctx)
-		// Check if the process has been cancelled.
-		if errors.Is(addErr, context.Canceled) {
-			// Set an empty RunResult
-			runResults[index] = &RunResult{
-				Terrafile: tf,
-				Cancelled: true,
-			}
-			continue
+		runs[index] = &TerraRun{
+			Terrafile: tf,
 		}
-		tf := tf
-		index := index
-
-		go func() {
-			defer swg.Done()
-			result := runCmds(&run, tf)
-			runResults[index] = result
-		}()
-
 	}
-	swg.Wait()
-
-	return &Result{
-		Runs: runResults,
-	}
+	runner.Runs = runs
+	return &runner
 }
 
-func Jobs(jobs int) func(r *TerraRun) {
-	return func(r *TerraRun) {
+type Runner struct {
+	opts TerraRunOpts
+	ctx  context.Context
+	swg  sizedwaitgroup.SizedWaitGroup
+
+	config *parser.TerraConfig
+
+	Runs []*TerraRun
+}
+
+func Run(config *parser.TerraConfig, opts ...func(r *TerraRunOpts)) *Runner {
+
+	runner := New(config, opts...)
+	runner.RunAll()
+	return runner
+}
+
+func Jobs(jobs int) func(r *TerraRunOpts) {
+	return func(r *TerraRunOpts) {
 		r.jobs = jobs
 	}
 }
 
-func RunValidate() func(r *TerraRun) {
-	return func(r *TerraRun) {
+func RunValidate() func(r *TerraRunOpts) {
+	return func(r *TerraRunOpts) {
 		r.validate = true
 	}
 }
 
-func RunInit() func(r *TerraRun) {
-	return func(r *TerraRun) {
+func RunInit() func(r *TerraRunOpts) {
+	return func(r *TerraRunOpts) {
 		r.init = true
 	}
 }
 
-func RunPlan() func(r *TerraRun) {
-	return func(r *TerraRun) {
+func RunPlan() func(r *TerraRunOpts) {
+	return func(r *TerraRunOpts) {
 		r.plan = true
 	}
 }
 
-func RunShowPlan() func(r *TerraRun) {
-	return func(r *TerraRun) {
+func RunShowPlan() func(r *TerraRunOpts) {
+	return func(r *TerraRunOpts) {
 		r.showPlan = true
 	}
 }
 
-func RunApply() func(r *TerraRun) {
-	return func(r *TerraRun) {
+func RunApply() func(r *TerraRunOpts) {
+	return func(r *TerraRunOpts) {
 		r.apply = true
 	}
 }
 
-func ExtraArgs(extraArgs []string) func(r *TerraRun) {
-	return func(r *TerraRun) {
+func ExtraArgs(extraArgs []string) func(r *TerraRunOpts) {
+	return func(r *TerraRunOpts) {
 		r.extraArgs = extraArgs
 	}
 }
 
-type TerraRun struct {
+// TerraRunOpts handles running Terraform over the root modules
+type TerraRunOpts struct {
 	validate bool
 	init     bool
 	plan     bool
@@ -147,193 +143,115 @@ type TerraRun struct {
 	extraArgs []string
 }
 
-func runCmds(run *TerraRun, tf *parser.Terrafile) *RunResult {
-	result := RunResult{
-		Terrafile: tf,
-	}
-	// Check if root module should be skipped or not
-	if tf.ExecBlock.Skip {
-		fmt.Printf("%s: Skipping...\n", tf.RelativeDir())
-		result.Skipped = true
-		return &result
-	}
-
-	if run.init {
-		taskResult := initCmd(run, tf)
-		result.Tasks = append(result.Tasks, taskResult)
-		if taskResult.HasError() {
-			return &result
+func (r *Runner) RunAll() {
+	for _, run := range r.Runs {
+		addErr := r.swg.AddWithContext(r.ctx)
+		// Check if the process has been cancelled.
+		if errors.Is(addErr, context.Canceled) {
+			run.Cancelled = true
+			continue
 		}
+
+		// Set local run for goroutine
+		run := run
+		go func() {
+			defer r.swg.Done()
+			run.Run(r.opts)
+		}()
 	}
-	if run.validate {
-		taskResult := validateCmd(run, tf)
-		result.Tasks = append(result.Tasks, taskResult)
-		if taskResult.HasError() {
-			return &result
-		}
-	}
-	if run.plan {
-		taskResult := planCmd(run, tf)
-		result.Tasks = append(result.Tasks, taskResult)
-		if taskResult.HasError() {
-			return &result
-		}
-	}
-	if run.showPlan {
-		taskResult := showPlanCmd(run, tf)
-		result.ProcessPlan(taskResult)
-		result.Tasks = append(result.Tasks, taskResult)
-		if taskResult.HasError() {
-			return &result
-		}
-	}
-	if run.apply {
-		taskResult := applyCmd(run, tf)
-		result.Tasks = append(result.Tasks, taskResult)
-		if taskResult.HasError() {
-			return &result
-		}
-	}
-	return &result
+	r.swg.Wait()
 }
 
-func initCmd(run *TerraRun, tf *parser.Terrafile) *TaskResult {
-	var args []string
-	args = append(args, tfCleanExtraArgs(run.extraArgs)...)
-	return runCmd(tf, terraInit, args)
-}
-
-func validateCmd(run *TerraRun, tf *parser.Terrafile) *TaskResult {
-	var args []string
-	args = append(args, tfCleanExtraArgs(run.extraArgs)...)
-	return runCmd(tf, terraValidate, args)
-}
-
-func planCmd(run *TerraRun, tf *parser.Terrafile) *TaskResult {
-	plan := tf.ExecBlock.PlanBlock
-
-	var args []string
-	args = append(args,
-		fmt.Sprintf("-lock=%v", plan.Lock),
-		fmt.Sprintf("-input=%v", plan.Input),
-	)
-	if !plan.SkipOut {
-		args = append(args,
-			"-out="+plan.Out,
-		)
-	}
-	args = append(args, tfCleanExtraArgs(tf.ExecBlock.ExtraArgs)...)
-	args = append(args, tfCleanExtraArgs(run.extraArgs)...)
-	return runCmd(tf, terraPlan, args)
-}
-
-func showPlanCmd(run *TerraRun, tf *parser.Terrafile) *TaskResult {
-	plan := tf.ExecBlock.PlanBlock
-	if plan.SkipOut {
-		return &TaskResult{
-			TerraCmd: terraShowPlan,
-			Skipped:  true,
-		}
-	}
-	var args []string
-	args = append(args, "-json", plan.Out)
-	return runCmd(tf, terraShowPlan, args)
-}
-
-func applyCmd(run *TerraRun, tf *parser.Terrafile) *TaskResult {
-	plan := tf.ExecBlock.PlanBlock
-
-	var args []string
-	args = append(args,
-		fmt.Sprintf("-lock=%v", plan.Lock),
-		fmt.Sprintf("-input=%v", plan.Input),
-	)
-	args = append(args, tfCleanExtraArgs(tf.ExecBlock.ExtraArgs)...)
-	args = append(args, tfCleanExtraArgs(run.extraArgs)...)
-
-	if !plan.SkipOut {
-		args = append(args, plan.Out)
-	}
-
-	return runCmd(tf, terraApply, args)
-}
-
-func runCmd(tf *parser.Terrafile, tfCmd terraCmd, args []string) *TaskResult {
-	result := TaskResult{
-		TerraCmd: tfCmd,
-	}
-	cmdArgs := append(tfArgs(tf), string(tfCmd))
-	cmdArgs = append(cmdArgs, args...)
-	result.ExecCmd = exec.Command(terraExe, cmdArgs...)
-
-	// Create channel and start progress printer
-	done := make(chan bool)
-	go printProgress(tf.RelativeDir(), tfCmd, done)
-	defer func() { done <- true }()
-
-	var runErr error
-	result.Output, runErr = result.ExecCmd.CombinedOutput()
-	if runErr != nil {
-		result.Error = fmt.Errorf("%s: running %s command", tf.RelativeDir(), tfCmd)
-	}
-
-	return &result
-}
-
-func tfArgs(tf *parser.Terrafile) []string {
-	var args []string
-	args = append(args, "-chdir="+tf.Dir)
-	return args
-}
-
-// tfCleanExtraArgs returns the provided slice with any empty spaces removed.
-// Empty spaces create weird errors that are hard to debug
-func tfCleanExtraArgs(args []string) []string {
-	var cleanArgs = make([]string, 0)
-	for _, arg := range args {
-		if arg != "" {
-			cleanArgs = append(cleanArgs, arg)
-		}
-	}
-	return cleanArgs
-}
-
-// listenTerminateSignals returns a context that will be cancelled if an interrupt
-// or termination signal is received. The context can be used to prevent further
-// runs from being scheduled
-func listenTerminateSignals() context.Context {
-	ctx, cancel := context.WithCancel(context.Background())
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		for {
-			<-signals
-			fmt.Println("")
-			fmt.Println("Terraplate: Interrupt received.")
-			fmt.Println("Terraplate: Sending interrupt to all Terraform processes and cancelling any queued runs.")
-			// Cancel the context, to stop any more runs from being executed
-			cancel()
-		}
-	}()
-	return ctx
-}
-
-func printProgress(path string, cmd terraCmd, done <-chan bool) {
+// Log returns a string of the runs and tasks to print to the console
+func (r *Runner) Log() string {
 	var (
-		interval = time.Second * 10
-		ticker   = time.NewTicker(interval)
-		elapsed  time.Duration
+		summary         strings.Builder
+		hasRelevantRuns bool
 	)
-	defer ticker.Stop()
-	// Print initial line
-	fmt.Printf("%s: %s...\n", path, strings.Title(cmd.Action()))
-	for {
-		select {
-		case <-ticker.C:
-			elapsed += interval
-			fmt.Printf("%s: Still %s... [%s elapsed]\n", path, cmd.Action(), elapsed)
-		case <-done:
-			return
+	summary.WriteString(textSeparator)
+	for _, run := range r.Runs {
+		// Skip runs that have nothing relevant to show
+		if !run.HasRelevantTasks() {
+			continue
+		}
+		hasRelevantRuns = true
+
+		summary.WriteString(boldColor.Sprintf("Run for %s\n\n", run.Terrafile.RelativeDir()))
+
+		for _, task := range run.Tasks {
+			if task.HasRelevance() {
+				summary.WriteString(task.Log())
+			}
 		}
 	}
+	// If there were no runs to output, return an empty string to avoid printing
+	// separators and empty space
+	if !hasRelevantRuns {
+		return ""
+	}
+	summary.WriteString(textSeparator)
+	return summary.String()
+}
+
+// PlanSummary returns a string summary to show after a plan
+func (r *Runner) PlanSummary() string {
+	var summary strings.Builder
+	summary.WriteString(boldColor.Sprint("\nTerraplate Plan Summary\n\n"))
+	for _, run := range r.Runs {
+		summary.WriteString(fmt.Sprintf("%s: %s\n", run.Terrafile.RelativeDir(), run.PlanSummary()))
+	}
+	return summary.String()
+}
+
+func (r *Runner) RunsWithDrift() []*TerraRun {
+	var runs []*TerraRun
+	for _, run := range r.Runs {
+		if run.Drift().HasDrift() {
+			runs = append(runs, run)
+		}
+	}
+	return runs
+}
+
+func (r *Runner) RunsWithError() []*TerraRun {
+	var runs []*TerraRun
+	for _, run := range r.Runs {
+		if run.HasError() {
+			runs = append(runs, run)
+		}
+	}
+	return runs
+}
+
+// HasDrift returns true if any drift was detected in any of the runs
+func (r *Runner) HasDrift() bool {
+	for _, run := range r.Runs {
+		if drift := run.Drift(); drift != nil {
+			// If at least one of the runs has drifted, then our result has drift
+			if drift.HasDrift() {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (r *Runner) HasError() bool {
+	for _, run := range r.Runs {
+		if run.HasError() {
+			return true
+		}
+	}
+	return false
+}
+
+// Errors returns a multierror with any errors found in any tasks within the runs
+func (r *Runner) Errors() error {
+	var err error
+	for _, run := range r.Runs {
+		if run.HasError() {
+			err = multierror.Append(err, run.Errors()...)
+		}
+	}
+	return err
 }

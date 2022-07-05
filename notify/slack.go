@@ -89,7 +89,7 @@ type slackMsgJSON struct {
 }
 
 func (s *slackService) Send(data *Data) error {
-	if !s.NotifyFilter.ShouldNotify(data.Result) {
+	if !s.NotifyFilter.ShouldNotify(data.Runner) {
 		fmt.Print(notifyNoDriftMessage)
 		return nil
 	}

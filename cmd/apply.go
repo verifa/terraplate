@@ -35,12 +35,12 @@ var applyCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("parsing terraplate: %w", err)
 		}
-		result := runner.Run(config, runner.RunApply(), runner.Jobs(applyJobs), runner.ExtraArgs(args))
+		runner := runner.Run(config, runner.RunApply(), runner.Jobs(applyJobs), runner.ExtraArgs(args))
 
 		// Print log
-		fmt.Println(result.Log())
+		fmt.Println(runner.Log())
 
-		return result.Errors()
+		return runner.Errors()
 	},
 }
 

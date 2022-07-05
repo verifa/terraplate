@@ -84,19 +84,21 @@ func buildTerraplate(terrafile *parser.Terrafile, config *parser.TerraConfig) er
 	// changes each time.
 	// Iterate over the sorted keys and then extract the value for that key
 	provMap := terrafile.TerraformBlock.RequiredProviders()
-	for _, name := range sortedMapKeys(provMap) {
-		value := provMap[name]
-		ctyType, typeErr := gocty.ImpliedType(value)
-		if typeErr != nil {
-			return fmt.Errorf("implying required provider to cty type for provider %s: %w", name, typeErr)
+	if len(provMap) > 0 {
+		for _, name := range sortedMapKeys(provMap) {
+			value := provMap[name]
+			ctyType, typeErr := gocty.ImpliedType(value)
+			if typeErr != nil {
+				return fmt.Errorf("implying required provider to cty type for provider %s: %w", name, typeErr)
+			}
+			ctyValue, ctyErr := gocty.ToCtyValue(value, ctyType)
+			if ctyErr != nil {
+				return fmt.Errorf("converting required provider to cty value for provider %s: %w", name, ctyErr)
+			}
+			provBlock.Body().SetAttributeValue(name, ctyValue)
 		}
-		ctyValue, ctyErr := gocty.ToCtyValue(value, ctyType)
-		if ctyErr != nil {
-			return fmt.Errorf("converting required provider to cty value for provider %s: %w", name, ctyErr)
-		}
-		provBlock.Body().SetAttributeValue(name, ctyValue)
+		tfBlock.Body().AppendBlock(provBlock)
 	}
-	tfBlock.Body().AppendBlock(provBlock)
 	// If body is not empty, write the terraform block
 	if isBodyEmpty(tfBlock.Body()) {
 		tfFile.Body().AppendBlock(tfBlock)

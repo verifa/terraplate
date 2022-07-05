@@ -47,12 +47,12 @@ templates and configurations detected.`,
 		fmt.Print(buildSuccessMessage)
 
 		if doValidate {
-			result := runner.Run(config, runner.RunInit(), runner.RunValidate())
+			runner := runner.Run(config, runner.RunInit(), runner.RunValidate())
 			// Print log
-			fmt.Println(result.Log())
+			fmt.Println(runner.Log())
 
-			if result.HasError() {
-				return result.Errors()
+			if runner.HasError() {
+				return runner.Errors()
 			}
 		}
 

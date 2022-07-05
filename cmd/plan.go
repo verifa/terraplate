@@ -48,7 +48,7 @@ var planCmd = &cobra.Command{
 			fmt.Print(buildSuccessMessage)
 		}
 		fmt.Print(terraformStartMessage)
-		runOpts := []func(r *runner.TerraRun){
+		runOpts := []func(r *runner.TerraRunOpts){
 			runner.RunPlan(),
 			runner.RunShowPlan(),
 			runner.Jobs(planJobs),
@@ -57,14 +57,14 @@ var planCmd = &cobra.Command{
 			runOpts = append(runOpts, runner.RunInit())
 		}
 		runOpts = append(runOpts, runner.ExtraArgs(args))
-		result := runner.Run(config, runOpts...)
+		runner := runner.Run(config, runOpts...)
 
 		// Print log
-		fmt.Println(result.Log())
+		fmt.Println(runner.Log())
 
-		fmt.Println(result.PlanSummary())
+		fmt.Println(runner.PlanSummary())
 
-		return result.Errors()
+		return runner.Errors()
 	},
 }
 

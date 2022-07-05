@@ -66,14 +66,14 @@ var driftCmd = &cobra.Command{
 		fmt.Print(buildSuccessMessage)
 		// Plan
 		fmt.Print(terraformStartMessage)
-		runOpts := []func(r *runner.TerraRun){
+		runOpts := []func(r *runner.TerraRunOpts){
 			runner.RunInit(),
 			runner.RunPlan(),
 			runner.RunShowPlan(),
 			runner.Jobs(planJobs),
 		}
 		runOpts = append(runOpts, runner.ExtraArgs(args))
-		result := runner.Run(config, runOpts...)
+		runner := runner.Run(config, runOpts...)
 
 		if notifyService != nil {
 			repo, repoErr := notify.LookupRepo(
@@ -83,7 +83,7 @@ var driftCmd = &cobra.Command{
 				return fmt.Errorf("looking up repository details: %w", repoErr)
 			}
 			sendErr := notifyService.Send(&notify.Data{
-				Result:     result,
+				Runner:     runner,
 				Repo:       repo,
 				ResultsURL: notifyResultsUrl,
 			})
@@ -92,7 +92,7 @@ var driftCmd = &cobra.Command{
 			}
 		}
 
-		fmt.Print(result.PlanSummary())
+		fmt.Print(runner.PlanSummary())
 		return nil
 	},
 }
