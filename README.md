@@ -33,12 +33,10 @@ Please check the [Documentation](https://terraplate.verifa.io)
 
 ## Project Status
 
-This project is currently in **alpha**.
-
-It is being used in production, but the functionality may change and backwards compatibility cannot be guaranteed at this time.
+Terraplate is **stable** and being used in production. There should be no breaking changes unless there is a new major version.
 
 Terraplate does not have a cache, cleanup functionality or overwrite protection.
-It's quite dumb, by design, so please be careful that you do not overwrite existing files (use Git, wink wink) and name your template files with a suffix such as `.tp.tf` to add another layer of "protection".
+It's quite dumb, by design, so please be careful that you do not overwrite existing files.
 
 ## Examples
 
