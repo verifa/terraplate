@@ -42,6 +42,12 @@ func RunPlan() func(r *TerraRunOpts) {
 	}
 }
 
+func RunShow() func(r *TerraRunOpts) {
+	return func(r *TerraRunOpts) {
+		r.show = true
+	}
+}
+
 func RunShowPlan() func(r *TerraRunOpts) {
 	return func(r *TerraRunOpts) {
 		r.showPlan = true
@@ -98,6 +104,7 @@ type TerraRunOpts struct {
 	init        bool
 	initUpgrade bool
 	plan        bool
+	show        bool
 	showPlan    bool
 	apply       bool
 

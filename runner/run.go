@@ -85,6 +85,13 @@ func (r *TerraRun) Start() {
 			return
 		}
 	}
+	if r.Opts.show {
+		taskResult := showCmd(r.Opts, tf)
+		r.Tasks = append(r.Tasks, taskResult)
+		if taskResult.HasError() {
+			return
+		}
+	}
 	if r.Opts.showPlan {
 		taskResult := showPlanCmd(r.Opts, tf)
 		r.ProcessPlan(taskResult)
@@ -183,7 +190,8 @@ func (r *TerraRun) IsPlanned() bool {
 		return false
 	}
 	for _, task := range r.Tasks {
-		if task.TerraCmd == terraPlan {
+		switch task.TerraCmd {
+		case terraPlan, terraShowJSON:
 			return true
 		}
 	}
@@ -265,12 +273,12 @@ func (r *TerraRun) HasPlan() bool {
 	return r.Plan != nil
 }
 
-// ProcessPlanText takes a TaskResult from a terraform show (without -json option)
+// ProcessPlanText takes a TaskResult from a terraform show (with -json option)
 // which makes for a compact human-readable output which we can show instead of
 // the raw output from terraform plan
 func (r *TerraRun) ProcessPlan(task *TaskResult) error {
 	// Make sure we received a `terraform show` task result
-	if task.TerraCmd != terraShowPlan {
+	if task.TerraCmd != terraShowJSON {
 		return fmt.Errorf("terraform show command required for processing plan: received %s", task.TerraCmd)
 	}
 	// Cannot process a plan if the `terraform show` command error'd

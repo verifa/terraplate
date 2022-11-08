@@ -41,6 +41,9 @@ func (t *TaskResult) IsRelevant() bool {
 	case terraPlan:
 		// Plan outputs are interesting
 		return true
+	case terraShow:
+		// Show outputs are interesting
+		return true
 	case terraApply:
 		// Apply outputs are interesting
 		return true
