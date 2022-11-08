@@ -27,10 +27,21 @@ func (t terraCmd) Action() string {
 		return "planning"
 	case terraApply:
 		return "applying"
-	case terraShowPlan:
+	case terraShow:
+		return "summarizing"
+	case terraShowJSON:
 		return "summarizing"
 	}
 	return "Unknown action"
+}
+
+func (t terraCmd) Cmd() string {
+	switch t {
+	case terraShowJSON:
+		return string(terraShow)
+	default:
+		return string(t)
+	}
 }
 
 const (
@@ -41,7 +52,11 @@ const (
 	terraInit     terraCmd = "init"
 	terraPlan     terraCmd = "plan"
 	terraApply    terraCmd = "apply"
-	terraShowPlan terraCmd = "show"
+	// terraShow is used to run `terraform show` to provide human readle output
+	terraShow terraCmd = "show"
+	// terraShowJSON is used to run `terraform show -json` to provide machine
+	// readable output
+	terraShowJSON terraCmd = "showPlan"
 )
 
 func buildCmd(opts TerraRunOpts, tf *parser.Terrafile) *TaskResult {
@@ -88,13 +103,26 @@ func showPlanCmd(opts TerraRunOpts, tf *parser.Terrafile) *TaskResult {
 	plan := tf.ExecBlock.PlanBlock
 	if plan.SkipOut {
 		return &TaskResult{
-			TerraCmd: terraShowPlan,
+			TerraCmd: terraShowJSON,
 			Skipped:  true,
 		}
 	}
 	var args []string
 	args = append(args, "-json", plan.Out)
-	return runCmd(opts.out, tf, terraShowPlan, args)
+	return runCmd(opts.out, tf, terraShowJSON, args)
+}
+
+func showCmd(opts TerraRunOpts, tf *parser.Terrafile) *TaskResult {
+	plan := tf.ExecBlock.PlanBlock
+	if plan.SkipOut {
+		return &TaskResult{
+			TerraCmd: terraShow,
+			Skipped:  true,
+		}
+	}
+	var args []string
+	args = append(args, plan.Out)
+	return runCmd(opts.out, tf, terraShow, args)
 }
 
 func applyCmd(opts TerraRunOpts, tf *parser.Terrafile) *TaskResult {
@@ -119,7 +147,7 @@ func runCmd(out io.Writer, tf *parser.Terrafile, tfCmd terraCmd, args []string) 
 	task := TaskResult{
 		TerraCmd: tfCmd,
 	}
-	cmdArgs := append(tfArgs(tf), string(tfCmd))
+	cmdArgs := append(tfArgs(tf), tfCmd.Cmd())
 	cmdArgs = append(cmdArgs, args...)
 	task.ExecCmd = exec.Command(terraExe, cmdArgs...)
 
