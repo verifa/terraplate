@@ -32,7 +32,7 @@ That way, you can keep your Terraform code DRY whilst not changing the way you i
 
 ## Less boilerplate
 
-TerraplateTerraplate has inheritance built in without being explicit (e.g. functions like `find_in_parent_folders()` don't need to be used).
+Terraplate has inheritance built in without being explicit (e.g. functions like `find_in_parent_folders()` don't need to be used).
 Whilst this is very minor, it does reduce the amount of boilerplate needed in your `terraplate.hcl` configurations.
 In fact, some `terraplate.hcl` files can be completely empty, because they inherit everything from parent `terraplate.hcl` files.
 
