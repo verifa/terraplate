@@ -24,35 +24,6 @@ func (t *TaskResult) HasError() bool {
 	return t.Error != nil
 }
 
-// IsRelevant is an attempt at better UX.
-// We don't simply want to output everything. Things like successful inits and
-// terraform show output are not interesting for the user, so skip them by
-// default and therefore keep the output less
-func (t *TaskResult) IsRelevant() bool {
-	// Errors are always relevant
-	if t.HasError() {
-		return true
-	}
-	// Skipped tasks are not relevant
-	if t.Skipped {
-		return false
-	}
-	switch t.TerraCmd {
-	case terraPlan:
-		// Plan outputs are interesting
-		return true
-	case terraShow:
-		// Show outputs are interesting
-		return true
-	case terraApply:
-		// Apply outputs are interesting
-		return true
-	default:
-		// Skip other command outputs
-		return false
-	}
-}
-
 func (t *TaskResult) Log() string {
 	var (
 		summary strings.Builder

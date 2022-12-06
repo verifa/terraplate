@@ -40,6 +40,8 @@ type TerraRun struct {
 	Plan     *tfjson.Plan
 	PlanText []byte
 
+	drift *Drift
+
 	wg    sync.WaitGroup
 	state state
 }
@@ -123,12 +125,15 @@ func (r *TerraRun) endRun() {
 	r.state = finishedState
 }
 
+// Log returns the log output of a TerraRun as a string.
+// Tasks are logged either if the fullLog parameter is true or if the
+// task is considered relevant
 func (r *TerraRun) Log(fullLog bool) string {
 	var log strings.Builder
 	log.WriteString(boldColor.Sprintf("Run for %s\n\n", r.Terrafile.Dir))
 
 	for _, task := range r.Tasks {
-		if fullLog || task.IsRelevant() {
+		if fullLog || r.isTaskRelevant(task, OutputLevelAll) {
 			log.WriteString(task.Log())
 		}
 	}
@@ -158,13 +163,20 @@ func (r *TerraRun) Summary() string {
 	}
 }
 
+// Drift returns the drift from a Terraform Run.
+// To avoid re-calculating it multiple times, store the drift in a local
+// member and only calculate it once
 func (r *TerraRun) Drift() *Drift {
 	if r == nil || !r.HasPlan() {
 		// Return an empty drift which means no drift (though user should check
 		// if plan was available as well)
 		return &Drift{}
 	}
-	return driftFromPlan(r.Plan)
+	if r.drift != nil {
+		return r.drift
+	}
+	r.drift = driftFromPlan(r.Plan)
+	return r.drift
 }
 
 func (r *TerraRun) IsApplied() bool {
@@ -257,9 +269,9 @@ func (r *TerraRun) Errors() []error {
 	return errors
 }
 
-func (r *TerraRun) HasRelevantTasks() bool {
+func (r *TerraRun) HasRelevantTasks(level OutputLevel) bool {
 	for _, task := range r.Tasks {
-		if task.IsRelevant() {
+		if r.isTaskRelevant(task, level) {
 			return true
 		}
 	}
@@ -293,4 +305,27 @@ func (r *TerraRun) ProcessPlan(task *TaskResult) error {
 	r.Plan = &tfPlan
 
 	return nil
+}
+
+func (r *TerraRun) isTaskRelevant(task *TaskResult, level OutputLevel) bool {
+	hasDrift := r.Drift().HasDrift()
+	// Always show errors
+	if task.HasError() {
+		return true
+	}
+	// Skipped tasks are not relevant
+	if task.Skipped {
+		return false
+	}
+	switch task.TerraCmd {
+	case terraPlan:
+		return level.ShowAll() || (level.ShowDrift() && hasDrift)
+	case terraShow:
+		return level.ShowAll() || (level.ShowDrift() && hasDrift)
+	case terraApply:
+		return true
+	default:
+		// Skip other command outputs
+		return false
+	}
 }

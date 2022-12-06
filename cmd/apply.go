@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -35,12 +35,12 @@ var applyCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("parsing terraplate: %w", err)
 		}
-		runner := runner.Run(config, runner.RunApply(), runner.Jobs(applyJobs), runner.ExtraArgs(args))
+		r := runner.Run(config, runner.RunApply(), runner.Jobs(applyJobs), runner.ExtraArgs(args))
 
 		// Print log
-		fmt.Println(runner.Log())
+		fmt.Println(r.Log(runner.OutputLevelAll))
 
-		return runner.Errors()
+		return r.Errors()
 	},
 }
 

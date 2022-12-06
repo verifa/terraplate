@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,10 +28,11 @@ import (
 )
 
 var (
-	planSkipBuild bool
-	runInit       bool
-	planJobs      int
-	planDevMode   bool
+	planSkipBuild   bool
+	runInit         bool
+	planJobs        int
+	planDevMode     bool
+	planOutputLevel string
 )
 
 // planCmd represents the plan command
@@ -40,6 +41,12 @@ var planCmd = &cobra.Command{
 	Short: "Runs terraform plan on all subdirectories",
 	Long:  `Runs terraform plan on all subdirectories.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+
+		outputLevel, err := runner.OutputLevel(planOutputLevel).Validate()
+		if err != nil {
+			return err
+		}
+
 		config, err := parser.Parse(&config.ParserConfig)
 		if err != nil {
 			return fmt.Errorf("parsing terraplate: %w", err)
@@ -86,10 +93,9 @@ var planCmd = &cobra.Command{
 			return nil
 		}
 
-		// Print log
-		fmt.Println(r.Log())
+		fmt.Println(r.Log(outputLevel))
 
-		fmt.Println(r.Summary())
+		fmt.Println(r.Summary(outputLevel))
 
 		return r.Errors()
 	},
@@ -102,4 +108,5 @@ func init() {
 	planCmd.Flags().BoolVar(&runInit, "init", false, "Run terraform init also")
 	planCmd.Flags().BoolVar(&planDevMode, "dev", false, "Start dev mode after plan finishes")
 	planCmd.Flags().IntVarP(&planJobs, "jobs", "j", runner.DefaultJobs, "Number of concurrent terraform jobs to run at one time")
+	planCmd.Flags().StringVar(&planOutputLevel, "output-level", string(runner.OutputLevelAll), "Level of output to show (all or drift)")
 }

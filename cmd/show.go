@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/spf13/cobra"
 	"github.com/verifa/terraplate/parser"
@@ -24,7 +25,9 @@ import (
 )
 
 var (
-	showJobs int
+	showCmdJobs         int
+	showCmdOutputLevel  string
+	showCmdShowProgress bool
 )
 
 // showCmd represents the show command
@@ -33,22 +36,34 @@ var showCmd = &cobra.Command{
 	Short: "Runs terraform show on all subdirectories",
 	Long:  `Runs terraform show on all subdirectories.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+
+		outputLevel, err := runner.OutputLevel(showCmdOutputLevel).Validate()
+		if err != nil {
+			return err
+		}
+
 		config, err := parser.Parse(&config.ParserConfig)
 		if err != nil {
 			return fmt.Errorf("parsing terraplate: %w", err)
 		}
-		fmt.Print(terraformStartMessage)
+		if showCmdShowProgress {
+			fmt.Print(terraformStartMessage)
+		}
 		runOpts := []func(r *runner.TerraRunOpts){
 			runner.RunShow(),
 			runner.RunShowPlan(),
-			runner.Jobs(showJobs),
+			runner.Jobs(showCmdJobs),
 		}
+		if !showCmdShowProgress {
+			runOpts = append(runOpts, runner.Output(io.Discard))
+		}
+
 		runOpts = append(runOpts, runner.ExtraArgs(args))
 		r := runner.Run(config, runOpts...)
 
-		fmt.Println(r.Log())
+		fmt.Println(r.Log(outputLevel))
 
-		fmt.Println(r.Summary())
+		fmt.Println(r.Summary(outputLevel))
 
 		return r.Errors()
 	},
@@ -57,5 +72,7 @@ var showCmd = &cobra.Command{
 func init() {
 	RootCmd.AddCommand(showCmd)
 
-	showCmd.Flags().IntVarP(&showJobs, "jobs", "j", runner.DefaultJobs, "Number of concurrent terraform jobs to run at one time")
+	showCmd.Flags().IntVarP(&showCmdJobs, "jobs", "j", runner.DefaultJobs, "Number of concurrent terraform jobs to run at one time")
+	showCmd.Flags().StringVar(&showCmdOutputLevel, "output-level", string(runner.OutputLevelAll), "Level of output to show (all or drift)")
+	showCmd.Flags().BoolVar(&showCmdShowProgress, "show-progress", true, "Whether to show Terraform run progress")
 }

@@ -110,7 +110,7 @@ func (r *Runner) Runs() []*TerraRun {
 }
 
 // Log returns a string of the runs and tasks to print to the console
-func (r *Runner) Log() string {
+func (r *Runner) Log(level OutputLevel) string {
 	var (
 		summary         strings.Builder
 		hasRelevantRuns bool
@@ -118,7 +118,7 @@ func (r *Runner) Log() string {
 	summary.WriteString(textSeparator)
 	for _, run := range r.Runs() {
 		// Skip runs that have nothing relevant to show
-		if !run.HasRelevantTasks() {
+		if !run.HasRelevantTasks(level) {
 			continue
 		}
 		hasRelevantRuns = true
@@ -135,11 +135,22 @@ func (r *Runner) Log() string {
 }
 
 // Summary returns a string summary to show after a plan
-func (r *Runner) Summary() string {
-	var summary strings.Builder
+func (r *Runner) Summary(level OutputLevel) string {
+	var (
+		summary         strings.Builder
+		hasRelevantRuns bool
+	)
 	summary.WriteString(boldColor.Sprint("\nTerraplate Summary\n\n"))
 	for _, run := range r.Runs() {
-		summary.WriteString(fmt.Sprintf("%s: %s\n", run.Terrafile.Dir, run.Summary()))
+		showSummary := level.ShowAll() || (run.Drift().HasDrift() && level.ShowDrift()) || run.HasError()
+
+		if showSummary {
+			hasRelevantRuns = true
+			summary.WriteString(fmt.Sprintf("%s: %s\n", run.Terrafile.Dir, run.Summary()))
+		}
+	}
+	if !hasRelevantRuns {
+		summary.WriteString("Everything up to date: no drift and no errors\n")
 	}
 	return summary.String()
 }

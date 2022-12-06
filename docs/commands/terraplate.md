@@ -30,5 +30,6 @@ Terraform configurations like providers and backend.
 * [terraplate init](terraplate_init.md)	 - Runs terraform init on all subdirectories
 * [terraplate parse](terraplate_parse.md)	 - Parse the terraplate files and print a summary
 * [terraplate plan](terraplate_plan.md)	 - Runs terraform plan on all subdirectories
+* [terraplate show](terraplate_show.md)	 - Runs terraform show on all subdirectories
 * [terraplate version](terraplate_version.md)	 - Show the Terraplate version
 
