@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
@@ -50,8 +51,14 @@ func TemplateWrite(buildData *BuildData, name string, text string, target string
 	if execErr != nil {
 		return execErr
 	}
-	// Format the contents to make it nice HCL
-	formattedContents := hclwrite.Format(rawContents.Bytes())
+
+	var formattedContents []byte
+	if strings.HasSuffix(target, ".tf") {
+		// Format the contents to make it nice HCL
+		formattedContents = hclwrite.Format(rawContents.Bytes())
+	} else {
+		formattedContents = rawContents.Bytes()
+	}
 
 	file, createErr := os.Create(target)
 	if createErr != nil {
